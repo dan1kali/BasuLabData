@@ -1,0 +1,9 @@
+# Ignore MATLAB binary data files
+*.mat
+
+# Ignore MATLAB autosave files
+*.asv
+
+# Ignore text files
+*.txt
+.DS_Store
