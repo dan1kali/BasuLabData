@@ -15,7 +15,9 @@ end
 save('features.mat','features');
 clear
 toc
+
 % okay these shits took 15 min
+% huzzah! only 10 min now!
 
 %% functions
 
@@ -30,7 +32,7 @@ function [features] = preProcess(filename)
     cfg.bsfreq = [55 65; 115 125; 175 185];  % notch bands around 60, 120, 180 Hz
     cfg.bsfiltord = 4;
     
-    cfg.hpfilter = 'yes';
+    cfg.hpfilter = 'yes';                    % high pass filter
     cfg.hpfreq = 0.5;
     cfg.hpfiltord = 5;
     
@@ -66,6 +68,7 @@ function [features] = preProcess(filename)
     ft_data_clean.trial = ft_data3_filt.trial(clean_trials_idx);
     ft_data_clean.time = ft_data3.time(clean_trials_idx);
     ft_data_clean.sampleinfo = ft_data3.sampleinfo(clean_trials_idx, :);
+    
     % New congruent/incongruent indices
     [~, loc_C] = ismember(Trials_C, clean_trials_idx);
     [~, loc_I] = ismember(Trials_I, clean_trials_idx);
@@ -74,6 +77,7 @@ function [features] = preProcess(filename)
 
     fprintf('\nRejected %d of %d trials (%.2f%%)\n', ...
         sum(bad_trials), nTrials, 100 * sum(bad_trials) / nTrials);
+
 
     %%%%%%%%%%%%%%%%% Feature Extraction %%%%%%%%%%%%%%%%%
     
@@ -85,13 +89,37 @@ function [features] = preProcess(filename)
     mask2 = ~strcmp(Parcellation_Sided_v3, 'RNan') & ~strcmp(Parcellation_Sided_v3, 'LNan');
     selectedChannels = find(mask1 & mask2);
 
+
+
+
+    
     [conPowerFeatures] = extractPowerFeatures(congruentData, timeData);
     [inPowerFeatures] = extractPowerFeatures(incongruentData, timeData);
     
+
+
+
+
+
+
     features = struct();
     features.(['conPowerFeatures_' patient]) = conPowerFeatures;
     features.(['inPowerFeatures_' patient]) = inPowerFeatures;
     features.(['selectedChannels_' patient]) = selectedChannels;
+
+
+    %%%%%%%%%%%%%%%%% Conflict Modulation Analysis %%%%%%%%%%%%%%%%%
+
+
+
+
+
+
+
+
+
+
+
 
 end
 
@@ -112,7 +140,8 @@ function [band_power_mean_max] = extractPowerFeatures(data, timeData)
 
             [~,t,~,~,Snorm]=computeNormalizedFreqMag(data{tr}(c,:),1000);
             t = t + timeData{1}(1);  % shift t so its zero corresponds to 0 s in original time
-                        
+            
+            % Cut time window: from  stimulus onset to behavioral response
             S_epoched = Snorm(t >= 0, :);   % time_indices after image onset
        
         % [1st column - mean, 2nd column - max]
@@ -120,13 +149,9 @@ function [band_power_mean_max] = extractPowerFeatures(data, timeData)
         band_power_mean_max{tr}(c,2) = max(S_epoched(:));   % max over time
 
         end
-        % band_power = [mean power, max power] for all trials per channel
     end
-        
-    % avg_band_power = mean(band_power_mean_max, 1);  % [average mean power, average max power]
-    % sem_band_power = std(band_power_mean_max, 0, 1) ./ sqrt(size(band_power_mean_max, 1));  % SEM for each
-
 end
+
 
 function [y,t,S,f,Snorm]=computeNormalizedFreqMag(x,Fs,params)
 
@@ -162,11 +187,24 @@ elseif strcmp(params.norm_option,'mean')
 end
 
 
-Snorm = S./repmat(m, size(S,1), 1);  % normalized power (this is implicit in your code)
+Snorm = S./repmat(m, size(S,1), 1);  % normalized power
 
 y=mean(Snorm,2); % mean power for each trial and channel
 
 % get max and min of S
+
+end
+
+
+function conflictAnalysis(features)
+
+
+% the baseline period (500 ms before stimulus onset
+
+
+    % avg_band_power = mean(band_power_mean_max, 1);  % [average mean power, average max power]
+    % sem_band_power = std(band_power_mean_max, 0, 1) ./ sqrt(size(band_power_mean_max, 1));  % SEM for each
+
 
 end
 
@@ -206,4 +244,8 @@ end
 % ft_data3 --> not dynamic
 
 
-% 3) ROI and ictal don't match the labels?
+%% Questions
+
+% 1) filter order?
+
+% 2) how to cut time data?
