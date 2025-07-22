@@ -89,11 +89,7 @@ function [features] = preProcess(filename)
     [inPowerFeatures] = extractPowerFeatures(incongruentData, timeData);
     
     features = struct();
-    % features.(['conMeanPower_' patient]) = conMeanPower;
-    % features.(['conMaxPower_' patient]) = conMaxPower;
     features.(['conPowerFeatures_' patient]) = conPowerFeatures;
-    % features.(['inMeanPower_' patient]) = inMeanPower;
-    % features.(['inMaxPower_' patient]) = inMaxPower;
     features.(['inPowerFeatures_' patient]) = inPowerFeatures;
     features.(['selectedChannels_' patient]) = selectedChannels;
 
