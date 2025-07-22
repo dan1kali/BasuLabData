@@ -7,3 +7,4 @@
 # Ignore text files
 *.txt
 .DS_Store
+*/
