@@ -227,7 +227,7 @@ function [conflictModChan] = conflictModAnalysis(PowerTimeData, BandPower, Zscor
         fprintf('\n%d/%d channels (%.2f%%) are conflict modulated.\nWith alpha = %.2f, # permutations = %d\n', ...
         sum(conflictModChan), nChannels, 100 * sum(conflictModChan) / nChannels, alpha, nPermutations);
 end
-
+e
 
 function decodeFeatures(features)
 % concat_index = ((c-1)*nTrials)+ tr; % concatenate all electrodes
@@ -331,98 +331,6 @@ end
 
 
 
-%% unused old functions
-
-function [newdata,nTrials,nChannels] = switchChannelsTrials(data)
-
-    nTrials = length(data);
-    nChannels = size(data{1}, 1);
-    newdata = cell(1, nChannels);
-    
-    for c = 1:nChannels
-        for t = 1:nTrials
-            newdata{c}(t, :) =  data{t}(c, :);
-        end
-    end
-
-    nChannels = length(newdata);
-    nTrials = size(newdata{1}, 1);
-end
-
-function conflictModAnalysisold(PowerTimeData, BandPower, Zscores, Trials_C, Trials_I, responseTimes)
-
-    nTrials = length(BandPower);
-    nChannels = size(BandPower{1}, 1);
-    nTime = size(BandPower{1}, 2);
-    t = PowerTimeData{1} (1,:);
-
-    alpha = 0.05;
-    nPermutations = 5000;
-    conflictModulated = false(nChannels, 1); % final output per channel
-    
-    % Convert cell array to trial x time matrix per channel
-    for ch = 1:nChannels
-        
-        
-        % set timewindow1 = [t=0, t=avg RT], timewindow2 = [t=-avg RT, t=0]
-        meanResponseTime = mean(responseTimes);
-        timeWindow1matrix = zeros(nTrials, nTime); 
-        timeWindow2matrix = zeros(nTrials, nTime); 
-       
-        timeWindow1 = find(t >= 0 & t <= meanResponseTime);
-        timeWindow1matrix(:, timeWindow1) = 1;
-
-        for tr = 1:nTrials
-            timeWindow2 = find(t >= -meanResponseTime & t <= responseTimes(tr));
-            timeWindow2matrix(tr,timeWindow2) = 1;
-        end
-
-        % Build trial x time matrices
-        con_matrix = zeros(nConTrials, nTime);
-        incon_matrix = zeros(nInTrials, nTime);
-        
-        for i = 1:nConTrials
-            con_matrix(i, :) = BandPower{Trials_C(i)}(ch, :);
-        end
-        
-        for i = 1:nInTrials
-            incon_matrix(i, :) = BandPower{Trials_I(i)}(ch, :);
-        end
-        
-        maskedCon1 = con_matrix .* timeWindow1matrix(Trials_C, :);
-        maskedCon2 = con_matrix .* timeWindow2matrix(Trials_C, :);
-        dataCon1 = maskedCon1(maskedCon1 ~= 0);
-        dataCon2 = maskedCon2(maskedCon2 ~= 0);
-
-        maskedIn1 = in_matrix .* timeWindow1matrix(Trials_I, :);
-        maskedIn2 = in_matrix .* timeWindow2matrix(Trials_I, :);
-        dataIn1 = maskedIn1(maskedIn1 ~= 0);
-        dataIn2 = maskedIn2(maskedIn2 ~= 0);
-
-        % Run permutation tests at each time bin
-        p1 = permutationTest(dataCon1, dataIn1, nPermutations);
-        p2 = permutationTest(dataCon2, dataIn2, nPermutations);
-
-        % mask of significant p values: >=0.05 -> 1, <0.05 --> 0
-        h1 = false(1, nTime);
-        h1(p1 <= alpha) = true;
-        
-        h2 = false(1, nTime);
-        h2(p2 <= alpha) = true;
-    
-        % Check for 15 consecutive significant bins (10 ms step between bins, want 150 ms)
-        windowSize = 15;
-        h1sum15 = movsum(h1, [windowSize - 1, 0]);  % moving sum of 15 consecutive bins
-        h2sum15 = movsum(h2, [windowSize - 1, 0]);  % moving sum of 15 consecutive bins
-        isConflictMod = any(h1sum15 >= windowSize & h2sum15 >= windowSize);
-    
-        conflictModulated(ch) = isConflictMod;
-    end
-
-
-end
-
-
 %% Future Concerns
 
 % 1) how ft_data3_filt is passed to ft_data3_clean only for .trials
@@ -456,47 +364,43 @@ end
 
 %% plotting
 
-subplot(2,1,1)
-plot(t(timeWindow1), mean(stimConMatrix(:, timeWindow1), 1))
-hold on
-plot(t(timeWindow1), mean(stimInMatrix(:, timeWindow1), 1))
-legend({'Congruent', 'Incongruent'})
-title(sprintf('Stimulus Aligned Window - Mean Across Trials - Channel %d Example', ch))
-
-subplot(2,1,2)
-plot(t,p1)
-yline(0.1,'m--','alpha=0.10','LabelHorizontalAlignment', 'left')
-yline(0.05,'r--')
-title('p value')
-
-
-xline(t(200),'b--','dt=0.08s','LabelOrientation', 'horizontal')
-xline(t(208),'b--')
-
-
-
-subplot(2,1,1)
-plot(resT(timeWindow2), mean(resConMatrix(:, timeWindow2), 1))
-hold on
-plot(resT(timeWindow2), mean(resInMatrix(:, timeWindow2), 1))
-legend({'Congruent', 'Incongruent'})
-title(sprintf('Response Aligned Window - Mean Across Trials - Channel %d Example', ch))
-
-subplot(2,1,2)
-plot(resT,p2)
-yline(0.1,'m--','alpha=0.10','LabelHorizontalAlignment', 'left')
-yline(0.05,'r--')
-title('p value')
-
-
-xline(resT(228),'b--','dt=0.13s','LabelOrientation', 'horizontal')
-xline(resT(241),'b--')
-
-
-
+% subplot(2,1,1)
+% plot(t(timeWindow1), mean(stimConMatrix(:, timeWindow1), 1))
+% hold on
+% plot(t(timeWindow1), mean(stimInMatrix(:, timeWindow1), 1))
+% legend({'Congruent', 'Incongruent'})
+% title(sprintf('Stimulus Aligned Window - Mean Across Trials - Channel %d Example', ch))
+% 
+% subplot(2,1,2)
+% plot(t,p1)
+% yline(0.1,'m--','alpha=0.10','LabelHorizontalAlignment', 'left')
+% yline(0.05,'r--')
+% title('p value')
+% 
+% 
+% xline(t(200),'b--','dt=0.08s','LabelOrientation', 'horizontal')
+% xline(t(208),'b--')
+% 
+% 
+% 
+% subplot(2,1,1)
+% plot(resT(timeWindow2), mean(resConMatrix(:, timeWindow2), 1))
+% hold on
+% plot(resT(timeWindow2), mean(resInMatrix(:, timeWindow2), 1))
+% legend({'Congruent', 'Incongruent'})
+% title(sprintf('Response Aligned Window - Mean Across Trials - Channel %d Example', ch))
+% 
+% subplot(2,1,2)
+% plot(resT,p2)
+% yline(0.1,'m--','alpha=0.10','LabelHorizontalAlignment', 'left')
+% yline(0.05,'r--')
+% title('p value')
+% 
+% 
+% xline(resT(228),'b--','dt=0.13s','LabelOrientation', 'horizontal')
+% xline(resT(241),'b--')
 
 %% with stdevs shaded
-
 
 % subplot(2,1,1)
 % % Calculate mean and std for Congruent/Incongruent
@@ -543,58 +447,51 @@ xline(resT(241),'b--')
 % title(sprintf('Response Aligned Window - Mean Across Trials - Channel %d Example', ch))
 
 
-
 %% all together
 
-tiledlayout(2,1, 'TileSpacing', 'compact', 'Padding', 'compact');
-
-% ----------------------------
-nexttile  % Top-left (Stimulus Aligned)
-meanCon = mean(stimConMatrix(:, timeWindow1), 1);
-stdCon = std(stimConMatrix(:, timeWindow1), [], 1);
-meanIn = mean(stimInMatrix(:, timeWindow1), 1);
-stdIn = std(stimInMatrix(:, timeWindow1), [], 1);
-fill([t(timeWindow1), fliplr(t(timeWindow1))], [meanCon + stdCon, fliplr(meanCon - stdCon)], ...
-    [0.8 0.8 1], 'EdgeColor', 'none', 'FaceAlpha', 0.3); hold on
-fill([t(timeWindow1), fliplr(t(timeWindow1))], [meanIn + stdIn, fliplr(meanIn - stdIn)], ...
-    [1 0.8 0.8], 'EdgeColor', 'none', 'FaceAlpha', 0.3);
-plot(t(timeWindow1), meanCon, 'b-', 'LineWidth', 1.5)
-plot(t(timeWindow1), meanIn, 'r-', 'LineWidth', 1.5)
-legend({'Con ± stdev', 'In ± stdev', 'Con Mean', 'In Mean'})
-title(sprintf('Stimulus Aligned Window - Channel %d', ch), 'FontSize', 16)
-
-% ----------------------------
-nexttile  % Top-right (Response Aligned)
-
-meanCon = mean(resConMatrix(:, timeWindow2), 1);
-stdCon = std(resConMatrix(:, timeWindow2), [], 1);
-meanIn = mean(resInMatrix(:, timeWindow2), 1);
-stdIn = std(resInMatrix(:, timeWindow2), [], 1);
-fill([resT(timeWindow2), fliplr(resT(timeWindow2))], [meanCon + stdCon, fliplr(meanCon - stdCon)], ...
-    [0.8 0.8 1], 'EdgeColor', 'none', 'FaceAlpha', 0.3); hold on
-fill([resT(timeWindow2), fliplr(resT(timeWindow2))], [meanIn + stdIn, fliplr(meanIn - stdIn)], ...
-    [1 0.8 0.8], 'EdgeColor', 'none', 'FaceAlpha', 0.3);
-plot(resT(timeWindow2), meanCon, 'b-', 'LineWidth', 1.5)
-plot(resT(timeWindow2), meanIn, 'r-', 'LineWidth', 1.5)
-title(sprintf('Response Aligned Window - Channel %d', ch), 'FontSize', 16)
-
-
-
-
-
-
-
-
-% ----------------------------
-nexttile  % Bottom-left (Stimulus p-values)
-plot(t,p1)
-yline(0.1,'m--','alpha=0.10','LabelHorizontalAlignment', 'left')
-yline(0.05,'r--')
-title('p value')
-
-% ----------------------------
-nexttile  % Bottom-right (Response p-values)
-plot(resT,p2)
-yline(0.1,'m--','alpha=0.10','LabelHorizontalAlignment', 'left')
-yline(0.05,'r--')
-title('p value')
+% tiledlayout(2,1, 'TileSpacing', 'compact', 'Padding', 'compact');
+% 
+% % ----------------------------
+% nexttile  % Top-left (Stimulus Aligned)
+% meanCon = mean(stimConMatrix(:, timeWindow1), 1);
+% stdCon = std(stimConMatrix(:, timeWindow1), [], 1);
+% meanIn = mean(stimInMatrix(:, timeWindow1), 1);
+% stdIn = std(stimInMatrix(:, timeWindow1), [], 1);
+% fill([t(timeWindow1), fliplr(t(timeWindow1))], [meanCon + stdCon, fliplr(meanCon - stdCon)], ...
+%     [0.8 0.8 1], 'EdgeColor', 'none', 'FaceAlpha', 0.3); hold on
+% fill([t(timeWindow1), fliplr(t(timeWindow1))], [meanIn + stdIn, fliplr(meanIn - stdIn)], ...
+%     [1 0.8 0.8], 'EdgeColor', 'none', 'FaceAlpha', 0.3);
+% plot(t(timeWindow1), meanCon, 'b-', 'LineWidth', 1.5)
+% plot(t(timeWindow1), meanIn, 'r-', 'LineWidth', 1.5)
+% legend({'Con ± stdev', 'In ± stdev', 'Con Mean', 'In Mean'})
+% title(sprintf('Stimulus Aligned Window - Channel %d', ch), 'FontSize', 16)
+% 
+% % ----------------------------
+% nexttile  % Top-right (Response Aligned)
+% 
+% meanCon = mean(resConMatrix(:, timeWindow2), 1);
+% stdCon = std(resConMatrix(:, timeWindow2), [], 1);
+% meanIn = mean(resInMatrix(:, timeWindow2), 1);
+% stdIn = std(resInMatrix(:, timeWindow2), [], 1);
+% fill([resT(timeWindow2), fliplr(resT(timeWindow2))], [meanCon + stdCon, fliplr(meanCon - stdCon)], ...
+%     [0.8 0.8 1], 'EdgeColor', 'none', 'FaceAlpha', 0.3); hold on
+% fill([resT(timeWindow2), fliplr(resT(timeWindow2))], [meanIn + stdIn, fliplr(meanIn - stdIn)], ...
+%     [1 0.8 0.8], 'EdgeColor', 'none', 'FaceAlpha', 0.3);
+% plot(resT(timeWindow2), meanCon, 'b-', 'LineWidth', 1.5)
+% plot(resT(timeWindow2), meanIn, 'r-', 'LineWidth', 1.5)
+% title(sprintf('Response Aligned Window - Channel %d', ch), 'FontSize', 16)
+% 
+% 
+% % ----------------------------
+% nexttile  % Bottom-left (Stimulus p-values)
+% plot(t,p1)
+% yline(0.1,'m--','alpha=0.10','LabelHorizontalAlignment', 'left')
+% yline(0.05,'r--')
+% title('p value')
+% 
+% % ----------------------------
+% nexttile  % Bottom-right (Response p-values)
+% plot(resT,p2)
+% yline(0.1,'m--','alpha=0.10','LabelHorizontalAlignment', 'left')
+% yline(0.05,'r--')
+% title('p value')
