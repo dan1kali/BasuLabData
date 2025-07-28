@@ -1,5 +1,6 @@
 %addpath_recurse('functions_general');
 load(fullfile('features.mat'));
+tic
 
 n = 34; 
 m_number = 1;
@@ -51,9 +52,9 @@ correct_number = correct_number(:);
 
 y = [mean(correct_number(:))];
 
-err = [std(correct_number(:))/sqrt(numel(correct_number))]; 
+err = std(correct_number(:))/sqrt(numel(correct_number)); 
 
-x = [1];
+x = 1;
 
 b = bar(x,y,'FaceColor',[0.511 0.515 1],'BarWidth', 0.4);
 
@@ -78,30 +79,38 @@ ylabel('Accuracy (%)');
 xlabel('MGH 2 subjects');
 title('10 fold cross validation SVM with 50 sessions');
 set(gca,'fontsize', 10,'box','off','FontName','Arial','tickDir','out')
-
+toc
 
 %% functions
 
-function [fea_number_con,fea_number_in, m_number_out] = concatenateFeatures(features,subject,m_number,n)
+function [fea_number_con, fea_number_in, m_number_out] = concatenateFeatures(features, subject, m_number, n)
     fea_number_con = [];
     fea_number_in = [];
+
     sel_chan_number = features.(['selectedChannels_' subject]);
 
     if ~isempty(sel_chan_number)
+        conPower = features.(['conPowerFeatures_' subject]);
+        inPower = features.(['inPowerFeatures_' subject]);
+
         for i = 1:length(sel_chan_number)
-            tent1 = cell2mat(features.(['conMaxPower_' subject])(sel_chan_number(i)));
-            tent2 = cell2mat(features.(['inMaxPower_' subject])(sel_chan_number(i)));
-            fea_number_con(1:n,m_number) = randsample(tent1,n);
-            fea_number_in(1:n,m_number) = randsample(tent2,n);
-            m_number =m_number+1;
+            ch = sel_chan_number(i);
 
-            tent1 = cell2mat(features.(['conMeanPower_' subject])(sel_chan_number(i)));
-            tent2 = cell2mat(features.(['inMeanPower_' subject])(sel_chan_number(i)));
-            fea_number_con(1:n,m_number) = randsample(tent1,n);
-            fea_number_in(1:n,m_number) = randsample(tent2,n);
-            m_number =m_number+1;
-            m_number_out =m_number;
+            % --- Max Power: Column 2 ---
+            tent1 = cellfun(@(x) x(ch,2), conPower);  % con max across trials
+            tent2 = cellfun(@(x) x(ch,2), inPower);   % in max across trials
+            fea_number_con(1:n, m_number) = randsample(tent1, n);
+            fea_number_in(1:n, m_number) = randsample(tent2, n);
+            m_number = m_number + 1;
 
+            % --- Mean Power: Column 1 ---
+            tent1 = cellfun(@(x) x(ch,1), conPower);  % con mean across trials
+            tent2 = cellfun(@(x) x(ch,1), inPower);   % in mean across trials
+            fea_number_con(1:n, m_number) = randsample(tent1, n);
+            fea_number_in(1:n, m_number) = randsample(tent2, n);
+            m_number = m_number + 1;
         end
+
+        m_number_out = m_number;
     end
 end
