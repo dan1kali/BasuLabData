@@ -2,7 +2,7 @@
 % time_indices = find(ft_data3.time >= 0 & t <= response_time);
 
 
-%% 
+%% Chronux only
 
 % Need to preprocess first
 

@@ -18,9 +18,11 @@ ft_data3_filt = ft_preprocessing(cfg,ft_data3);
 
 
 %% Artifact Rejection
-% For each electrode and each task, trials with amplitudes 
-% (max-min voltage from fixation onset to stimulus off) larger than 
-% three stdevs above the mean amplitude across all trials were excluded
+% For each electrode, trials with amplitudes 
+
+% (max-min voltage from fixation onset to stimulus off) 
+
+% larger than three stdevs above the mean amplitude across all trials were excluded
 
 
 

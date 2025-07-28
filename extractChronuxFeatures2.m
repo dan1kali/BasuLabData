@@ -1,10 +1,8 @@
 
 %% just testing conflict mod on BW42
 
-tic
-[conflictModChan] = conflictModAnalysis(features.powerTimeData_BW42, features.powerData_BW42, ...
-    features.zScores_BW42, features.trialsC_BW42, features.trialsI_BW42, features.responseTimes_BW42);
-toc
+
+[conflictModChan] = conflictModAnalysis(PowerTimeData, features.PowerData_BW42, features.Zscores_BW42, Trials_C, Trials_I, responseTimes);
 
 
 %% 
@@ -13,7 +11,7 @@ files = {'BW42.mat', 'MG51b.mat'};
 features = struct();
 
 for i = 1:length(files)
-    patientFeatures = preProcess(files{i});
+    patientFeatures = preProcessTrials(files{i});
     
     fNames = fieldnames(patientFeatures);
     for k = 1:numel(fNames)
@@ -29,7 +27,7 @@ toc
 
 %% functions
 
-function [features] = preProcess(filename)
+function [clean_trials_idx] = preProcessTrials(filename)
     load(fullfile(filename));
     [~, patient, ~] = fileparts(filename);
 
@@ -76,17 +74,24 @@ function [features] = preProcess(filename)
     
     %%%%%%%%%%%%%%%%% 27 mustnot be 0 or -1 , aka must be 1 %%%%%%%%%%%%%%%%%
     
+
+
+end
+
+
+function [features] = PowerAndChannelReject(cleanTrialsIdx)
+
     % convert rest of ft_data3
     ft_data_clean = ft_data3;
-    ft_data_clean.trial = ft_data3_filt.trial(clean_trials_idx);
-    ft_data_clean.time = ft_data3.time(clean_trials_idx);
-    ft_data_clean.sampleinfo = ft_data3.sampleinfo(clean_trials_idx,:);
-    responseTimes = TrialDet(clean_trials_idx,12);
+    ft_data_clean.trial = ft_data3_filt.trial(cleanTrialsIdx);
+    ft_data_clean.time = ft_data3.time(cleanTrialsIdx);
+    ft_data_clean.sampleinfo = ft_data3.sampleinfo(cleanTrialsIdx,:);
+    responseTimes = TrialDet(cleanTrialsIdx,12);
     meanResponseTime = mean(responseTimes);
     
     % New congruent/incongruent indices
-    [~, loc_C] = ismember(Trials_C, clean_trials_idx);
-    [~, loc_I] = ismember(Trials_I, clean_trials_idx);
+    [~, loc_C] = ismember(Trials_C, cleanTrialsIdx);
+    [~, loc_I] = ismember(Trials_I, cleanTrialsIdx);
     Trials_C_clean = loc_C(loc_C > 0); % remove rejected indices
     Trials_I_clean = loc_I(loc_I > 0);
 
@@ -96,12 +101,14 @@ function [features] = preProcess(filename)
     %%%%%%%%%%%%%%%%% Feature Extraction %%%%%%%%%%%%%%%%%
     
     timeData = ft_data_clean.time;
+
+
     selectedChannels = ft_data3.label;
     mask1 = ~ismember(selectedChannels, ch_ictal);
     mask2 = ~strcmp(Parcellation_Sided_v3, 'RNan') & ~strcmp(Parcellation_Sided_v3, 'LNan');
     selectedChannels = find(mask1 & mask2);
 
-    [PowerFeatures, ZScores, PowerData, PowerTimeData] = extractPowerFeatures(ft_data_clean.trial, timeData, responseTimes);
+    [~, ~, PowerData, PowerTimeData] = extractPowerFeatures(ft_data_clean.trial, timeData, responseTimes);
 
     conPowerFeatures = PowerFeatures(Trials_C_clean);
     inPowerFeatures  = PowerFeatures(Trials_I_clean);
@@ -113,10 +120,8 @@ function [features] = preProcess(filename)
     features.(['inPowerFeatures_' patient]) = inPowerFeatures;
     features.(['selectedChannels_' patient]) = selectedChannels;
     features.(['zScores_' patient]) = ZScores;
-    features.(['responseTimes_' patient]) = responseTimes;
-    features.(['trialsC_' patient]) = Trials_C_clean;
-    features.(['trialsI_' patient]) = Trials_I_clean;
 end
+
 
 function [conflictModChan] = conflictModAnalysis(PowerTimeData, BandPower, Zscores, Trials_C, Trials_I, responseTimes)
 
@@ -153,6 +158,9 @@ function [conflictModChan] = conflictModAnalysis(PowerTimeData, BandPower, Zscor
         end
     end
 
+
+
+
     %%%%%%%%%%%%%%%%% Conflict Modulation Analysis %%%%%%%%%%%%%%%%%
 
     % Do permutation test for
@@ -165,8 +173,8 @@ function [conflictModChan] = conflictModAnalysis(PowerTimeData, BandPower, Zscor
     meanResponseTime = mean(responseTimes);
     resT = t - meanResponseTime;
 
-    alpha = 0.1;
-    nPermutations = 1000;
+    alpha = 0.05;
+    nPermutations = 5000;
     conflictModChan = false(nChannels, 1); % final output per channel
     
     % Convert cell array to trial x time matrix per channel
@@ -184,6 +192,7 @@ function [conflictModChan] = conflictModAnalysis(PowerTimeData, BandPower, Zscor
             rt = responseTimes(Trials_C(i));
             t_resp = t - rt; % re-align t to response at t = 0
             resConMatrix(i, :) = interp1(t_resp, BandPower{Trials_C(i)}(ch,:), resT, 'linear', NaN);
+
         end
         
         for i = 1:nInTrials
@@ -192,6 +201,7 @@ function [conflictModChan] = conflictModAnalysis(PowerTimeData, BandPower, Zscor
             rt = responseTimes(Trials_I(i));
             t_resp = t - rt;
             resInMatrix(i, :) = interp1(t_resp, BandPower{Trials_I(i)}(ch,:), resT, 'linear', NaN);
+   
         end
 
         timeWindow1 = find(t >= 0 & t <= meanResponseTime);
@@ -218,14 +228,12 @@ function [conflictModChan] = conflictModAnalysis(PowerTimeData, BandPower, Zscor
         windowSize = 15;
         h1sum15 = movsum(h1, [windowSize - 1, 0]);  % moving sum of 15 consecutive bins
         h2sum15 = movsum(h2, [windowSize - 1, 0]);
-        isConflictMod = any(h1sum15 >= windowSize) &&  any(h2sum15 >= windowSize);
-        % isConflictMod = any(h1sum15 >= windowSize) ||  any(h2sum15 >= windowSize);
+        isConflictMod = any(h1sum15 >= windowSize) && any(h2sum15 >= windowSize);
     
-        
         conflictModChan(ch) = isConflictMod;
     end
-        fprintf('\n%d/%d channels (%.2f%%) are conflict modulated.\nWith alpha = %.2f, # permutations = %d\n', ...
-        sum(conflictModChan), nChannels, 100 * sum(conflictModChan) / nChannels, alpha, nPermutations);
+
+
 end
 
 
@@ -235,6 +243,7 @@ function decodeFeatures(features)
 
 
 end
+
 
 
 
@@ -265,7 +274,7 @@ function [band_power_mean_max, band_power_zscore, normalized_band_power, power_t
             normalized_band_power {tr}(ch,:) = Snorm;  % all band power
             t = t + timeData{1}(1);  % shift t so its zero corresponds to 0 s in original time
             power_time_data {tr}(ch,:) = t;  % all band power
-
+            
             % Cut time window: from  stimulus onset to behavioral response
 
             S_epoched_per_trial = Snorm(t >= 0 & t <= responseTimes(tr), :);   % time_indices after image onset
@@ -330,99 +339,6 @@ y=mean(S./repmat(m,size(S,1),1),2); % mean power for each trial and channel
 end
 
 
-
-%% unused old functions
-
-function [newdata,nTrials,nChannels] = switchChannelsTrials(data)
-
-    nTrials = length(data);
-    nChannels = size(data{1}, 1);
-    newdata = cell(1, nChannels);
-    
-    for c = 1:nChannels
-        for t = 1:nTrials
-            newdata{c}(t, :) =  data{t}(c, :);
-        end
-    end
-
-    nChannels = length(newdata);
-    nTrials = size(newdata{1}, 1);
-end
-
-function conflictModAnalysisold(PowerTimeData, BandPower, Zscores, Trials_C, Trials_I, responseTimes)
-
-    nTrials = length(BandPower);
-    nChannels = size(BandPower{1}, 1);
-    nTime = size(BandPower{1}, 2);
-    t = PowerTimeData{1} (1,:);
-
-    alpha = 0.05;
-    nPermutations = 5000;
-    conflictModulated = false(nChannels, 1); % final output per channel
-    
-    % Convert cell array to trial x time matrix per channel
-    for ch = 1:nChannels
-        
-        
-        % set timewindow1 = [t=0, t=avg RT], timewindow2 = [t=-avg RT, t=0]
-        meanResponseTime = mean(responseTimes);
-        timeWindow1matrix = zeros(nTrials, nTime); 
-        timeWindow2matrix = zeros(nTrials, nTime); 
-       
-        timeWindow1 = find(t >= 0 & t <= meanResponseTime);
-        timeWindow1matrix(:, timeWindow1) = 1;
-
-        for tr = 1:nTrials
-            timeWindow2 = find(t >= -meanResponseTime & t <= responseTimes(tr));
-            timeWindow2matrix(tr,timeWindow2) = 1;
-        end
-
-        % Build trial x time matrices
-        con_matrix = zeros(nConTrials, nTime);
-        incon_matrix = zeros(nInTrials, nTime);
-        
-        for i = 1:nConTrials
-            con_matrix(i, :) = BandPower{Trials_C(i)}(ch, :);
-        end
-        
-        for i = 1:nInTrials
-            incon_matrix(i, :) = BandPower{Trials_I(i)}(ch, :);
-        end
-        
-        maskedCon1 = con_matrix .* timeWindow1matrix(Trials_C, :);
-        maskedCon2 = con_matrix .* timeWindow2matrix(Trials_C, :);
-        dataCon1 = maskedCon1(maskedCon1 ~= 0);
-        dataCon2 = maskedCon2(maskedCon2 ~= 0);
-
-        maskedIn1 = in_matrix .* timeWindow1matrix(Trials_I, :);
-        maskedIn2 = in_matrix .* timeWindow2matrix(Trials_I, :);
-        dataIn1 = maskedIn1(maskedIn1 ~= 0);
-        dataIn2 = maskedIn2(maskedIn2 ~= 0);
-
-        % Run permutation tests at each time bin
-        p1 = permutationTest(dataCon1, dataIn1, nPermutations);
-        p2 = permutationTest(dataCon2, dataIn2, nPermutations);
-
-        % mask of significant p values: >=0.05 -> 1, <0.05 --> 0
-        h1 = false(1, nTime);
-        h1(p1 <= alpha) = true;
-        
-        h2 = false(1, nTime);
-        h2(p2 <= alpha) = true;
-    
-        % Check for 15 consecutive significant bins (10 ms step between bins, want 150 ms)
-        windowSize = 15;
-        h1sum15 = movsum(h1, [windowSize - 1, 0]);  % moving sum of 15 consecutive bins
-        h2sum15 = movsum(h2, [windowSize - 1, 0]);  % moving sum of 15 consecutive bins
-        isConflictMod = any(h1sum15 >= windowSize & h2sum15 >= windowSize);
-    
-        conflictModulated(ch) = isConflictMod;
-    end
-
-
-end
-
-
 %% Future Concerns
 
 % 1) how ft_data3_filt is passed to ft_data3_clean only for .trials
@@ -451,150 +367,3 @@ end
 % greenlight the electrode?
 
 % 4) is the z score calculation correct.?
-
-
-
-%% plotting
-
-subplot(2,1,1)
-plot(t(timeWindow1), mean(stimConMatrix(:, timeWindow1), 1))
-hold on
-plot(t(timeWindow1), mean(stimInMatrix(:, timeWindow1), 1))
-legend({'Congruent', 'Incongruent'})
-title(sprintf('Stimulus Aligned Window - Mean Across Trials - Channel %d Example', ch))
-
-subplot(2,1,2)
-plot(t,p1)
-yline(0.1,'m--','alpha=0.10','LabelHorizontalAlignment', 'left')
-yline(0.05,'r--')
-title('p value')
-
-
-xline(t(200),'b--','dt=0.08s','LabelOrientation', 'horizontal')
-xline(t(208),'b--')
-
-
-
-subplot(2,1,1)
-plot(resT(timeWindow2), mean(resConMatrix(:, timeWindow2), 1))
-hold on
-plot(resT(timeWindow2), mean(resInMatrix(:, timeWindow2), 1))
-legend({'Congruent', 'Incongruent'})
-title(sprintf('Response Aligned Window - Mean Across Trials - Channel %d Example', ch))
-
-subplot(2,1,2)
-plot(resT,p2)
-yline(0.1,'m--','alpha=0.10','LabelHorizontalAlignment', 'left')
-yline(0.05,'r--')
-title('p value')
-
-
-xline(resT(228),'b--','dt=0.13s','LabelOrientation', 'horizontal')
-xline(resT(241),'b--')
-
-
-
-
-%% with stdevs shaded
-
-
-% subplot(2,1,1)
-% % Calculate mean and std for Congruent/Incongruent
-% meanCon = mean(stimConMatrix(:, timeWindow1), 1);
-% stdCon = std(stimConMatrix(:, timeWindow1), [], 1);
-% meanIn = mean(stimInMatrix(:, timeWindow1), 1);
-% stdIn = std(stimInMatrix(:, timeWindow1), [], 1);
-% 
-% % Plot shaded area for Congruent/Incongruent
-% fill([t(timeWindow1), fliplr(t(timeWindow1))], ...
-%      [meanCon + stdCon, fliplr(meanCon - stdCon)], ...
-%      [0.8 0.8 1], 'EdgeColor', 'none', 'FaceAlpha', 0.3); hold on
-% fill([t(timeWindow1), fliplr(t(timeWindow1))], ...
-%      [meanIn + stdIn, fliplr(meanIn - stdIn)], ...
-%      [1 0.8 0.8], 'EdgeColor', 'none', 'FaceAlpha', 0.3);
-% 
-% % Plot mean lines
-% plot(t(timeWindow1), meanCon, 'b-', 'LineWidth', 1.5)
-% plot(t(timeWindow1), meanIn, 'r-', 'LineWidth', 1.5)
-% legend({'Congruent ± stdev', 'Incongruent ± stdev', 'Congruent Mean', 'Incongruent Mean'})
-% title(sprintf('Stimulus Aligned Window - Mean Across Trials - Channel %d Example', ch))
-% 
-% 
-% 
-% subplot(2,1,1)
-% % Calculate mean and std for Congruent/Incongruent
-% meanCon = mean(resConMatrix(:, timeWindow2), 1);
-% stdCon = std(resConMatrix(:, timeWindow2), [], 1);
-% meanIn = mean(resInMatrix(:, timeWindow2), 1);
-% stdIn = std(resInMatrix(:, timeWindow2), [], 1);
-% 
-% % Plot shaded area for Congruent/Incongruent
-% fill([resT(timeWindow2), fliplr(resT(timeWindow2))], ...
-%      [meanCon + stdCon, fliplr(meanCon - stdCon)], ...
-%      [0.8 0.8 1], 'EdgeColor', 'none', 'FaceAlpha', 0.3); hold on
-% fill([resT(timeWindow2), fliplr(resT(timeWindow2))], ...
-%      [meanIn + stdIn, fliplr(meanIn - stdIn)], ...
-%      [1 0.8 0.8], 'EdgeColor', 'none', 'FaceAlpha', 0.3);
-% 
-% % Plot mean lines
-% plot(resT(timeWindow1), meanCon, 'b-', 'LineWidth', 1.5)
-% plot(resT(timeWindow1), meanIn, 'r-', 'LineWidth', 1.5)
-% legend({'Congruent ± stdev', 'Incongruent ± stdev', 'Congruent Mean', 'Incongruent Mean'})
-% title(sprintf('Response Aligned Window - Mean Across Trials - Channel %d Example', ch))
-
-
-
-%% all together
-
-tiledlayout(2,1, 'TileSpacing', 'compact', 'Padding', 'compact');
-
-% ----------------------------
-nexttile  % Top-left (Stimulus Aligned)
-meanCon = mean(stimConMatrix(:, timeWindow1), 1);
-stdCon = std(stimConMatrix(:, timeWindow1), [], 1);
-meanIn = mean(stimInMatrix(:, timeWindow1), 1);
-stdIn = std(stimInMatrix(:, timeWindow1), [], 1);
-fill([t(timeWindow1), fliplr(t(timeWindow1))], [meanCon + stdCon, fliplr(meanCon - stdCon)], ...
-    [0.8 0.8 1], 'EdgeColor', 'none', 'FaceAlpha', 0.3); hold on
-fill([t(timeWindow1), fliplr(t(timeWindow1))], [meanIn + stdIn, fliplr(meanIn - stdIn)], ...
-    [1 0.8 0.8], 'EdgeColor', 'none', 'FaceAlpha', 0.3);
-plot(t(timeWindow1), meanCon, 'b-', 'LineWidth', 1.5)
-plot(t(timeWindow1), meanIn, 'r-', 'LineWidth', 1.5)
-legend({'Con ± stdev', 'In ± stdev', 'Con Mean', 'In Mean'})
-title(sprintf('Stimulus Aligned Window - Channel %d', ch), 'FontSize', 16)
-
-% ----------------------------
-nexttile  % Top-right (Response Aligned)
-
-meanCon = mean(resConMatrix(:, timeWindow2), 1);
-stdCon = std(resConMatrix(:, timeWindow2), [], 1);
-meanIn = mean(resInMatrix(:, timeWindow2), 1);
-stdIn = std(resInMatrix(:, timeWindow2), [], 1);
-fill([resT(timeWindow2), fliplr(resT(timeWindow2))], [meanCon + stdCon, fliplr(meanCon - stdCon)], ...
-    [0.8 0.8 1], 'EdgeColor', 'none', 'FaceAlpha', 0.3); hold on
-fill([resT(timeWindow2), fliplr(resT(timeWindow2))], [meanIn + stdIn, fliplr(meanIn - stdIn)], ...
-    [1 0.8 0.8], 'EdgeColor', 'none', 'FaceAlpha', 0.3);
-plot(resT(timeWindow2), meanCon, 'b-', 'LineWidth', 1.5)
-plot(resT(timeWindow2), meanIn, 'r-', 'LineWidth', 1.5)
-title(sprintf('Response Aligned Window - Channel %d', ch), 'FontSize', 16)
-
-
-
-
-
-
-
-
-% ----------------------------
-nexttile  % Bottom-left (Stimulus p-values)
-plot(t,p1)
-yline(0.1,'m--','alpha=0.10','LabelHorizontalAlignment', 'left')
-yline(0.05,'r--')
-title('p value')
-
-% ----------------------------
-nexttile  % Bottom-right (Response p-values)
-plot(resT,p2)
-yline(0.1,'m--','alpha=0.10','LabelHorizontalAlignment', 'left')
-yline(0.05,'r--')
-title('p value')
