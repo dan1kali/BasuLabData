@@ -1,15 +1,29 @@
 
-%% just testing conflict mod on BW42
+%% Testing conflict mod on one patient
+
+patientList = {'MG51b'};  % BW42, MG51b
 
 tic
-[conflictModChan] = conflictModAnalysis(features.powerTimeData_BW42, features.powerData_BW42, ...
-    features.zScores_BW42, features.trialsC_BW42, features.trialsI_BW42, features.responseTimes_BW42);
+for i = 1:length(patientList)
+    patient = patientList{i};
+    fprintf('Running conflictModAnalysis for patient: %s\n', patient);
+    conflictModChan = conflictModAnalysis( ...
+        features.(['powerTimeData_' patient]), ...
+        features.(['powerData_' patient]), ...
+        features.(['zScores_' patient]), ...
+        features.(['trialsC_' patient]), ...
+        features.(['trialsI_' patient]), ...
+        features.(['responseTimes_' patient]));
+    conflictModChanIndices = find(conflictModChan==1);
+    features.(['selectedChan_' patient '_confMod_a10']) = conflictModChanIndices;
+end
 toc
+save('features.mat', 'features', '-append');
 
+%% Preprocess and extract features
 
-%% 
 tic
-files = {'BW42.mat', 'MG51b.mat'};
+files = {'BW42.mat','MG51b.mat'};
 features = struct();
 
 for i = 1:length(files)
@@ -51,14 +65,14 @@ function [features] = preProcess(filename)
     
 
     %%%%%%%%%%%%%%%%% Artifact Trial Rejection %%%%%%%%%%%%%%%%%
-
-    % [-1 +2] window needed for artifact rejection
-
+    
     % Calculate max-min amplitudes
     amplitudes = zeros(nChannels, nTrials);
     for tr = 1:nTrials
         for ch = 1:nChannels
-            signal = ft_data3.trial{tr} (ch, :); % {trial} [channels x time]
+            % [-1 +2] window needed for artifact rejection
+            timeIdx = ft_data3.time{tr} >= -1 & ft_data3.time{tr} <= 2;
+            signal = ft_data3.trial{tr} (ch, timeIdx); % {trial} [channels x time]
             amplitudes(ch, tr) = max(signal) - min(signal);
         end
     end
@@ -70,12 +84,11 @@ function [features] = preProcess(filename)
     
     % Identify artifact trials per channel
     artifact_mask = amplitudes > thresholds;      % [trials x channels]
-    bad_trials = any(artifact_mask, 1) | isnan(TrialDet(:,12))';
+    % bad_trials = any(artifact_mask, 1) | isnan(TrialDet(:,12))';
+    bad_trials = any(artifact_mask, 1) | TrialDet(:,27)' ~= 1; % must = 1 for correct trials
     bad_trials = bad_trials';                     % convert to column [trials x 1]
     clean_trials_idx = find(~bad_trials);         % indices of good trials
-    
-    %%%%%%%%%%%%%%%%% 27 mustnot be 0 or -1 , aka must be 1 %%%%%%%%%%%%%%%%%
-    
+        
     % convert rest of ft_data3
     ft_data_clean = ft_data3;
     ft_data_clean.trial = ft_data3_filt.trial(clean_trials_idx);
@@ -111,7 +124,7 @@ function [features] = preProcess(filename)
     features.(['powerTimeData_' patient]) = PowerTimeData;
     features.(['conPowerFeatures_' patient]) = conPowerFeatures;
     features.(['inPowerFeatures_' patient]) = inPowerFeatures;
-    features.(['selectedChannels_' patient]) = selectedChannels;
+    features.(['selectedChan_' patient]) = selectedChannels;
     features.(['zScores_' patient]) = ZScores;
     features.(['responseTimes_' patient]) = responseTimes;
     features.(['trialsC_' patient]) = Trials_C_clean;
@@ -153,9 +166,11 @@ function [conflictModChan] = conflictModAnalysis(PowerTimeData, BandPower, Zscor
         end
     end
 
+    %%% add code to do something with the responsiveChannels code %%%
+
     %%%%%%%%%%%%%%%%% Conflict Modulation Analysis %%%%%%%%%%%%%%%%%
 
-    % Do permutation test for
+    % Do permutation test for:
     % [0s , 0s + time window] - stimulus align
     % [RT - time window , RT] - response align
 
@@ -172,20 +187,21 @@ function [conflictModChan] = conflictModAnalysis(PowerTimeData, BandPower, Zscor
     % Convert cell array to trial x time matrix per channel
     for ch = 1:nChannels
         
-        % Build trial x time matrices
         stimConMatrix = zeros(nConTrials, nTime);
         stimInMatrix = zeros(nInTrials, nTime);
         resConMatrix = zeros(nConTrials, nTime);
         resInMatrix = zeros(nInTrials, nTime);
         
-        for i = 1:nConTrials
+        % Congruent matrices
+        for i = 1:nConTrials % Build stimulus aligned
             stimConMatrix(i, :) = BandPower{Trials_C(i)}(ch, :);
 
-            rt = responseTimes(Trials_C(i));
+            rt = responseTimes(Trials_C(i)); % Build response aligned
             t_resp = t - rt; % re-align t to response at t = 0
             resConMatrix(i, :) = interp1(t_resp, BandPower{Trials_C(i)}(ch,:), resT, 'linear', NaN);
         end
         
+        % Repeat for incongruent
         for i = 1:nInTrials
             stimInMatrix(i, :) = BandPower{Trials_I(i)}(ch, :);
 
@@ -195,7 +211,7 @@ function [conflictModChan] = conflictModAnalysis(PowerTimeData, BandPower, Zscor
         end
 
         timeWindow1 = find(t >= 0 & t <= meanResponseTime);
-        timeWindow2 = find(resT >= -meanResponseTime & resT <= 0); % assume all NaNs got cut
+        timeWindow2 = find(resT >= -meanResponseTime & resT <= 0); % assume all NaNs will get cut
             
         % Run permutation tests at each time bin
         p1 = NaN(1, nTime); % initialize p-values vector at each time bin
@@ -220,24 +236,21 @@ function [conflictModChan] = conflictModAnalysis(PowerTimeData, BandPower, Zscor
         h2sum15 = movsum(h2, [windowSize - 1, 0]);
         isConflictMod = any(h1sum15 >= windowSize) &&  any(h2sum15 >= windowSize);
         % isConflictMod = any(h1sum15 >= windowSize) ||  any(h2sum15 >= windowSize);
+
+        %%%%% can try changing to 100 ms --> 10 10ms bins %%%%
     
-        
         conflictModChan(ch) = isConflictMod;
     end
         fprintf('\n%d/%d channels (%.2f%%) are conflict modulated.\nWith alpha = %.2f, # permutations = %d\n', ...
         sum(conflictModChan), nChannels, 100 * sum(conflictModChan) / nChannels, alpha, nPermutations);
+        
 end
-e
+
 
 function decodeFeatures(features)
-% concat_index = ((c-1)*nTrials)+ tr; % concatenate all electrodes
-
-
+% see testRun2 for decoding inference
 
 end
-
-
-
 
 
 function [band_power_mean_max, band_power_zscore, normalized_band_power, power_time_data] = extractPowerFeatures(data, timeData, responseTimes)
@@ -340,7 +353,6 @@ end
 % but if doesn't take from ft_data3, then no initialization for
 % Trials_C/Trials_I
 
-
 % 2) how preprocess loads data
 % instead of taking data as argument for everything, loads and names
 % ft_data3 --> not dynamic
@@ -348,6 +360,10 @@ end
 % 3) not hardcoding the 391/103 --> just didn't preset the initialization
 
 % 4) making window size (15) in conflictModAnalysis dynamic
+
+% 5) fix the preprocessing window, fix trial rejection for incorrect trials
+
+
 
 %% Questions
 

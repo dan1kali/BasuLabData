@@ -25,7 +25,7 @@ for i_randsamp = 1:50
 
         end
     end
-    clear sel_chan_stroop sel_chan_flanker sel_chan_number
+    clear sel_chan_number
 
     %% Subject MG51b
     subject = 'MG51b';
