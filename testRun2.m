@@ -3,12 +3,12 @@ load(fullfile('features.mat'));
 tic
 
 n = 34; 
-m_number = 1;
-subjects = {'BW42', 'MG51b'};
-fea_number_con = [];
-fea_number_in = [];
+subjects = {'MG51b'}; % BW42, MG51b
 
 for i_randsamp = 1:50
+m_number = 1;
+fea_number_con = [];
+fea_number_in = [];
 
     for i_sub = 1:length(subjects)
         [fea_con_tmp, fea_in_tmp, m_number] = concatenateFeatures(features,subjects{i_sub}, m_number, n);
@@ -46,8 +46,6 @@ for i_randsamp = 1:50
     
 end 
 
-correct_number = correct_number(:);
-
 %% Plot
 
 y = [mean(correct_number(:))];
@@ -70,13 +68,12 @@ for i = 1:length(x)
         'FontSize', 10);
 end
 
+xticks([1 2]); xticklabels({'Original','Permutation Test'});xlabel('Channel Rejection Method');
 
 ylim([00 100])
-xlim([0 2])
+xlim([0 3])
 line([0 6],[50 50],'color','k','linestyle','--','linewidth',1.5)
-set(gca,'XTickLabel',[]);set(gca,'XTick',[]);
 ylabel('Accuracy (%)');
-xlabel('MGH 2 subjects');
 title('10 fold cross validation SVM with 50 sessions');
 set(gca,'fontsize', 10,'box','off','FontName','Arial','tickDir','out')
 toc
@@ -87,7 +84,9 @@ function [fea_number_con, fea_number_in, m_number_out] = concatenateFeatures(fea
     fea_number_con = [];
     fea_number_in = [];
 
-    sel_chan_number = features.(['selectedChannels_' subject]);
+    sel_chan_number = features.(['selectedChan_' subject]);
+    % sel_chan_number = features.(['selectedChan_' subject '_confMod_a10' ]);
+    % sel_chan_number = features.selectedChan_BW42_confMod_vis;
 
     if ~isempty(sel_chan_number)
         conPower = features.(['conPowerFeatures_' subject]);
