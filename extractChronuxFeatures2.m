@@ -2,7 +2,7 @@
 %% Preprocess and extract features
 
 tic
-files = {'BW42.mat','MG51b.mat'};
+files = {'BW42','MG51b'};
 features = struct();
 
 for i = 1:length(files)
@@ -44,8 +44,8 @@ save('conflictModChans_zscores.mat', 'conflictModChans');
 %% functions
 
 function [features] = preProcess(filename)
-    load(fullfile(filename));
-    [~, patient, ~] = fileparts(filename);
+    load(fullfile('patientData',filename));
+    % [~, patient, ~] = fileparts(filename);
 
     %%%%%%%%%%%%%%%%% Filtering %%%%%%%%%%%%%%%%%
 
@@ -181,9 +181,6 @@ function [finalChannelList] = conflictModAnalysis(PowerTimeData, PowerData, Tria
     end
 
 
-
-    %%% add code to do something with the responsiveChannels code %%%
-
     %%%%%%%%%%%%%%%%% Conflict Modulation Analysis %%%%%%%%%%%%%%%%%
 
     % Do permutation test for:
@@ -269,7 +266,8 @@ end
 
 
 function [band_power_mean_max, normalized_band_power, power_time_data] = extractPowerFeatures(data, timeData, responseTimes)
-    
+    addpath(genpath('functions'))
+
     nTrials = length(data);
     nChannels = size(data{1}, 1);
             
@@ -371,7 +369,7 @@ end
 
 % 4) is the z score calculation correct.?
 
-%% plotting
+%% plotting with p test on bottom
 
 % subplot(2,1,1)
 % plot(t(timeWindowStim), mean(stimConMatrix(:, timeWindowStim), 1))
@@ -411,62 +409,61 @@ end
 
 %% with stdevs shaded
 
-% Stimulus-aligned plot (subplot 1)
-subplot(2,1,1)
-
-% Calculate mean and SEM for Congruent/Incongruent
-nTrialsCon = size(stimConMatrix, 1);
-nTrialsIn  = size(stimInMatrix, 1);
-
-meanCon = mean(stimConMatrix(:, timeWindowStim), 1);
-semCon  = std(stimConMatrix(:, timeWindowStim), [], 1) / sqrt(nTrialsCon);
-
-meanIn = mean(stimInMatrix(:, timeWindowStim), 1);
-semIn  = std(stimInMatrix(:, timeWindowStim), [], 1) / sqrt(nTrialsIn);
-
-% Plot shaded SEM areas
-fill([t(timeWindowStim), fliplr(t(timeWindowStim))], ...
-     [meanCon + semCon, fliplr(meanCon - semCon)], ...
-     [0.8 0.8 1], 'EdgeColor', 'none', 'FaceAlpha', 0.3); hold on
-fill([t(timeWindowStim), fliplr(t(timeWindowStim))], ...
-     [meanIn + semIn, fliplr(meanIn - semIn)], ...
-     [1 0.8 0.8], 'EdgeColor', 'none', 'FaceAlpha', 0.3);
-
-% Plot mean lines
-plot(t(timeWindowStim), meanCon, 'b-', 'LineWidth', 1.5)
-plot(t(timeWindowStim), meanIn, 'r-', 'LineWidth', 1.5)
-legend({'Congruent ± SEM', 'Incongruent ± SEM', 'Congruent Mean', 'Incongruent Mean'})
-title(sprintf('Stimulus Aligned Window - Mean Across Trials - Channel %d Example', ch))
-
-
-
-
-% Response-aligned plot (subplot 2)
-subplot(2,1,2)
-
-% Calculate mean and SEM for Congruent/Incongruent
-nTrialsCon = size(resConMatrix, 1);
-nTrialsIn  = size(resInMatrix, 1);
-
-meanCon = mean(resConMatrix(:, timeWindowRes), 1);
-semCon  = std(resConMatrix(:, timeWindowRes), [], 1) / sqrt(nTrialsCon);
-
-meanIn = mean(resInMatrix(:, timeWindowRes), 1);
-semIn  = std(resInMatrix(:, timeWindowRes), [], 1) / sqrt(nTrialsIn);
-
-% Plot shaded SEM areas
-fill([resT(timeWindowRes), fliplr(resT(timeWindowRes))], ...
-     [meanCon + semCon, fliplr(meanCon - semCon)], ...
-     [0.8 0.8 1], 'EdgeColor', 'none', 'FaceAlpha', 0.3); hold on
-fill([resT(timeWindowRes), fliplr(resT(timeWindowRes))], ...
-     [meanIn + semIn, fliplr(meanIn - semIn)], ...
-     [1 0.8 0.8], 'EdgeColor', 'none', 'FaceAlpha', 0.3);
-
-% Plot mean lines
-plot(resT(timeWindowRes), meanCon, 'b-', 'LineWidth', 1.5)
-plot(resT(timeWindowRes), meanIn, 'r-', 'LineWidth', 1.5)
-legend({'Congruent ± SEM', 'Incongruent ± SEM', 'Congruent Mean', 'Incongruent Mean'})
-title(sprintf('Response Aligned Window - Mean Across Trials - Channel %d Example', ch))
+% % Stimulus-aligned plot (subplot 1)
+% subplot(2,1,1)
+% 
+% % Calculate mean and SEM for Congruent/Incongruent
+% nTrialsCon = size(stimConMatrix, 1);
+% nTrialsIn  = size(stimInMatrix, 1);
+% 
+% meanCon = mean(stimConMatrix(:, timeWindowStim), 1);
+% semCon  = std(stimConMatrix(:, timeWindowStim), [], 1) / sqrt(nTrialsCon);
+% 
+% meanIn = mean(stimInMatrix(:, timeWindowStim), 1);
+% semIn  = std(stimInMatrix(:, timeWindowStim), [], 1) / sqrt(nTrialsIn);
+% 
+% % Plot shaded SEM areas
+% fill([t(timeWindowStim), fliplr(t(timeWindowStim))], ...
+%      [meanCon + semCon, fliplr(meanCon - semCon)], ...
+%      [0.8 0.8 1], 'EdgeColor', 'none', 'FaceAlpha', 0.3); hold on
+% fill([t(timeWindowStim), fliplr(t(timeWindowStim))], ...
+%      [meanIn + semIn, fliplr(meanIn - semIn)], ...
+%      [1 0.8 0.8], 'EdgeColor', 'none', 'FaceAlpha', 0.3);
+% 
+% % Plot mean lines
+% plot(t(timeWindowStim), meanCon, 'b-', 'LineWidth', 1.5)
+% plot(t(timeWindowStim), meanIn, 'r-', 'LineWidth', 1.5)
+% legend({'Congruent ± SEM', 'Incongruent ± SEM', 'Congruent Mean', 'Incongruent Mean'})
+% title(sprintf('Stimulus Aligned Window - Mean Across Trials - Channel %d Example', ch))
+% 
+% 
+% 
+% % Response-aligned plot (subplot 2)
+% subplot(2,1,2)
+% 
+% % Calculate mean and SEM for Congruent/Incongruent
+% nTrialsCon = size(resConMatrix, 1);
+% nTrialsIn  = size(resInMatrix, 1);
+% 
+% meanCon = mean(resConMatrix(:, timeWindowRes), 1);
+% semCon  = std(resConMatrix(:, timeWindowRes), [], 1) / sqrt(nTrialsCon);
+% 
+% meanIn = mean(resInMatrix(:, timeWindowRes), 1);
+% semIn  = std(resInMatrix(:, timeWindowRes), [], 1) / sqrt(nTrialsIn);
+% 
+% % Plot shaded SEM areas
+% fill([resT(timeWindowRes), fliplr(resT(timeWindowRes))], ...
+%      [meanCon + semCon, fliplr(meanCon - semCon)], ...
+%      [0.8 0.8 1], 'EdgeColor', 'none', 'FaceAlpha', 0.3); hold on
+% fill([resT(timeWindowRes), fliplr(resT(timeWindowRes))], ...
+%      [meanIn + semIn, fliplr(meanIn - semIn)], ...
+%      [1 0.8 0.8], 'EdgeColor', 'none', 'FaceAlpha', 0.3);
+% 
+% % Plot mean lines
+% plot(resT(timeWindowRes), meanCon, 'b-', 'LineWidth', 1.5)
+% plot(resT(timeWindowRes), meanIn, 'r-', 'LineWidth', 1.5)
+% legend({'Congruent ± SEM', 'Incongruent ± SEM', 'Congruent Mean', 'Incongruent Mean'})
+% title(sprintf('Response Aligned Window - Mean Across Trials - Channel %d Example', ch))
 
 
 %% all together
