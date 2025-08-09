@@ -1,3 +1,22 @@
+
+%% Preprocess lab features - not yet working
+
+tic
+files = {'sub1/sub1','sub2/sub2','sub3/sub3','sub4/sub4'};
+features = struct();
+
+for i = 1:length(files)
+    patientFeatures = preProcess(files{i});
+    
+    fNames = fieldnames(patientFeatures);
+    for k = 1:numel(fNames)
+        features.(fNames{k}) = patientFeatures.(fNames{k});
+    end
+end
+
+save('features_theirdata.mat','features');
+toc
+
 %% Preprocess and extract features
 
 tic
@@ -13,7 +32,7 @@ for i = 1:length(files)
     end
 end
 
-save('features_70_110.mat','features');
+save('features_epoched_power.mat','features');
 toc
 
 % okay these took 15 min
@@ -52,7 +71,6 @@ function [features] = preProcess(patient)
     cfg.bsfilter = 'yes';                    % bandstop filter (notch)
     cfg.bsfreq = [55 65; 115 125; 175 185];  % 60, 120, 180 Hz
     cfg.bsfiltord = 4;
-    
     cfg.hpfilter = 'yes';                    % high pass filter
     cfg.hpfreq = 0.5;
     cfg.hpfiltord = 5;
@@ -61,7 +79,6 @@ function [features] = preProcess(patient)
        
     nTrials = numel(ft_data3.trial);
     nChannels = numel(ft_data3.label);
-    
 
     %%%%%%%%%%%%%%%%% Artifact Trial Rejection %%%%%%%%%%%%%%%%%
     
@@ -276,6 +293,7 @@ function [band_power_mean_max, normalized_band_power, power_time_data] = extract
 
     for tr=1:nTrials
         band_power_mean_max{tr} = zeros(nChannels, 2);
+        normalized_band_power{tr} = cell(1, nChannels);
         
         % normalized_band_power{tr} = zeros(nChannels, 2);
 
@@ -286,18 +304,29 @@ function [band_power_mean_max, normalized_band_power, power_time_data] = extract
             params = struct();
             %params.fpass = [70 110];  % frequency band you want to analyze
 
-            [Snorm,~,~,~]=computeNormalizedFreqMag(data{tr}(ch,:),1000,params);
-
-            normalized_band_power {tr}(ch,:) = Snorm;  % all band power
-            t = t + timeData{1}(1);  % shift t so its zero corresponds to 0 s in original time
+            [~,t,S,~]=computeNormalizedFreqMag(data{tr}(ch,:),1000,params);
+            
+            % ~~~~~~~~~~~~ Save time-frequency power data ~~~~~~~~~~~~~~
+            
+            % Save all band power in frequency x time
+            normalized_band_power {tr}{ch} = S';
+            t = t + timeData{1}(1);  % shift t
             power_time_data {tr}(ch,:) = t;
 
-            % Cut time window: from  stimulus onset to behavioral response
-            S_epoched_per_trial = Snorm(t >= 0 & t <= responseTimes(tr), :);   % time_indices after image onset
+            % ~~~~~~~~~~~~~~~~~~~~~~ Save features ~~~~~~~~~~~~~~~~~~~~~~
             
+            % Cut time window: only look at stimulus onset to behavioral response
+            tWindow = t >= 0 & t <= responseTimes(tr); 
+            S_epoched = S(tWindow,:);
+            m = mean(S_epoched,1); % mean across time (1 value per frequency)
+            expanded_m = repmat(m,size(S_epoched,1),1);
+
+            % Power over time, per channel/trial
+            S_norm_epoched = mean(S_epoched./expanded_m,2); 
+
             % [1st column - mean, 2nd column - max]
-            band_power_mean_max{tr}(ch,1) = mean(S_epoched_per_trial(:));  % mean over time
-            band_power_mean_max{tr}(ch,2) = max(S_epoched_per_trial(:));   % max over time
+            band_power_mean_max{tr}(ch,1) = mean(S_norm_epoched(:));  % mean over time
+            band_power_mean_max{tr}(ch,2) = max(S_norm_epoched(:));   % max over time
 
         end
     end
@@ -343,7 +372,6 @@ y=mean(S./repmat(m,size(S,1),1),2); % mean power for each trial and channel
 % y=mean(S,2); % mean power for each trial and channel
 
 end
-
 
 
 %% Future Concerns
