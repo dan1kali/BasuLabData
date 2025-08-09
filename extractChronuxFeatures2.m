@@ -1,4 +1,3 @@
-
 %% Preprocess and extract features
 
 tic
@@ -14,7 +13,7 @@ for i = 1:length(files)
     end
 end
 
-save('features.mat','features');
+save('features_70_110.mat','features');
 toc
 
 % okay these took 15 min
@@ -39,12 +38,12 @@ for i = 1:length(patientList)
 end
 toc
 % save('features.mat', 'features');
-save('conflictModChans_zscores.mat', 'conflictModChans');
+save('conflictModChans_zscores_70_110.mat', 'conflictModChans');
 
 %% functions
 
-function [features] = preProcess(filename)
-    load(fullfile('patientData',filename));
+function [features] = preProcess(patient)
+    load(fullfile('patientData',patient));
     % [~, patient, ~] = fileparts(filename);
 
     %%%%%%%%%%%%%%%%% Filtering %%%%%%%%%%%%%%%%%
@@ -253,9 +252,9 @@ function [finalChannelList] = conflictModAnalysis(PowerTimeData, PowerData, Tria
         conflictModChan(ch) = isConflictMod;
     end
         
-    fprintf('\n%d/%d channels (%.2f%%) are conflict modulated.\nWith alpha = %.2f, # permutations = %d\n', ...
-    sum(conflictModChan), nChannels, 100 * sum(conflictModChan) / nChannels, alpha, nPermutations);
     finalChannelList = conflictModChan & responsiveChannels;
+    fprintf('\n%d/%d channels (%.2f%%) are conflict modulated.\nWith alpha = %.2f, # permutations = %d\n', ...
+    sum(finalChannelList), nChannels, 100 * sum(finalChannelList) / nChannels, alpha, nPermutations);
 end
 
 
@@ -283,8 +282,12 @@ function [band_power_mean_max, normalized_band_power, power_time_data] = extract
         for ch=1:nChannels
             
             %%%%%%%%%%%%%%%%% Band Power Calculation %%%%%%%%%%%%%%%%%
-            
-            [Snorm,t,~,~]=computeNormalizedFreqMag(data{tr}(ch,:),1000);
+
+            params = struct();
+            %params.fpass = [70 110];  % frequency band you want to analyze
+
+            [Snorm,~,~,~]=computeNormalizedFreqMag(data{tr}(ch,:),1000,params);
+
             normalized_band_power {tr}(ch,:) = Snorm;  % all band power
             t = t + timeData{1}(1);  % shift t so its zero corresponds to 0 s in original time
             power_time_data {tr}(ch,:) = t;
@@ -330,10 +333,14 @@ end
 if strcmp(params.norm_option,'median')
     m=median(S,1);
 elseif strcmp(params.norm_option,'mean')
-    m=mean(S,1);
+    m=mean(S,1); % collapses across time - 1 mean for each frequency bin
 end
 
 y=mean(S./repmat(m,size(S,1),1),2); % mean power for each trial and channel
+
+% repmat is a vector of mean of S over time the size of frequency
+% Divide by mean across time (scaling)  --> % of average power across time
+% y=mean(S,2); % mean power for each trial and channel
 
 end
 
@@ -468,58 +475,58 @@ end
 
 %% all together
 
-tiledlayout(2,1, 'TileSpacing', 'compact', 'Padding', 'compact');
-
-% ----------------------------
-nexttile  % Top-left (Stimulus Aligned)
-nConStim = size(stimConMatrix, 1);
-nInStim  = size(stimInMatrix, 1);
-
-meanCon = mean(stimConMatrix(:, timeWindowStim), 1);
-semCon  = std(stimConMatrix(:, timeWindowStim), [], 1) / sqrt(nConStim);
-
-meanIn = mean(stimInMatrix(:, timeWindowStim), 1);
-semIn  = std(stimInMatrix(:, timeWindowStim), [], 1) / sqrt(nInStim);
-
-fill([t(timeWindowStim), fliplr(t(timeWindowStim))], [meanCon + semCon, fliplr(meanCon - semCon)], ...
-    [0.8 0.8 1], 'EdgeColor', 'none', 'FaceAlpha', 0.3); hold on
-fill([t(timeWindowStim), fliplr(t(timeWindowStim))], [meanIn + semIn, fliplr(meanIn - semIn)], ...
-    [1 0.8 0.8], 'EdgeColor', 'none', 'FaceAlpha', 0.3);
-plot(t(timeWindowStim), meanCon, 'b-', 'LineWidth', 1.5)
-plot(t(timeWindowStim), meanIn, 'r-', 'LineWidth', 1.5)
-legend({'Con ± SEM', 'In ± SEM', 'Con Mean', 'In Mean'})
-title(sprintf('Stimulus Aligned Window - Channel %d', ch), 'FontSize', 16)
-
-% ----------------------------
-nexttile  % Top-right (Response Aligned)
-nConRes = size(resConMatrix, 1);
-nInRes  = size(resInMatrix, 1);
-
-meanCon = mean(resConMatrix(:, timeWindowRes), 1);
-semCon  = std(resConMatrix(:, timeWindowRes), [], 1) / sqrt(nConRes);
-
-meanIn = mean(resInMatrix(:, timeWindowRes), 1);
-semIn  = std(resInMatrix(:, timeWindowRes), [], 1) / sqrt(nInRes);
-
-fill([resT(timeWindowRes), fliplr(resT(timeWindowRes))], [meanCon + semCon, fliplr(meanCon - semCon)], ...
-    [0.8 0.8 1], 'EdgeColor', 'none', 'FaceAlpha', 0.3); hold on
-fill([resT(timeWindowRes), fliplr(resT(timeWindowRes))], [meanIn + semIn, fliplr(meanIn - semIn)], ...
-    [1 0.8 0.8], 'EdgeColor', 'none', 'FaceAlpha', 0.3);
-plot(resT(timeWindowRes), meanCon, 'b-', 'LineWidth', 1.5)
-plot(resT(timeWindowRes), meanIn, 'r-', 'LineWidth', 1.5)
-title(sprintf('Response Aligned Window - Channel %d', ch), 'FontSize', 16)
-
-% ----------------------------
-nexttile  % Bottom-left (Stimulus p-values)
-plot(t,p1)
-yline(0.1,'m--','alpha=0.10','LabelHorizontalAlignment', 'left')
-yline(0.05,'r--')
-title('p value')
-
-% ----------------------------
-nexttile  % Bottom-right (Response p-values)
-plot(resT,p2)
-yline(0.1,'m--','alpha=0.10','LabelHorizontalAlignment', 'left')
-yline(0.05,'r--')
-title('p value')
-
+% tiledlayout(2,1, 'TileSpacing', 'compact', 'Padding', 'compact');
+% 
+% % ----------------------------
+% nexttile  % Top-left (Stimulus Aligned)
+% nConStim = size(stimConMatrix, 1);
+% nInStim  = size(stimInMatrix, 1);
+% 
+% meanCon = mean(stimConMatrix(:, timeWindowStim), 1);
+% semCon  = std(stimConMatrix(:, timeWindowStim), [], 1) / sqrt(nConStim);
+% 
+% meanIn = mean(stimInMatrix(:, timeWindowStim), 1);
+% semIn  = std(stimInMatrix(:, timeWindowStim), [], 1) / sqrt(nInStim);
+% 
+% fill([t(timeWindowStim), fliplr(t(timeWindowStim))], [meanCon + semCon, fliplr(meanCon - semCon)], ...
+%     [0.8 0.8 1], 'EdgeColor', 'none', 'FaceAlpha', 0.3); hold on
+% fill([t(timeWindowStim), fliplr(t(timeWindowStim))], [meanIn + semIn, fliplr(meanIn - semIn)], ...
+%     [1 0.8 0.8], 'EdgeColor', 'none', 'FaceAlpha', 0.3);
+% plot(t(timeWindowStim), meanCon, 'b-', 'LineWidth', 1.5)
+% plot(t(timeWindowStim), meanIn, 'r-', 'LineWidth', 1.5)
+% legend({'Con ± SEM', 'In ± SEM', 'Con Mean', 'In Mean'})
+% title(sprintf('Stimulus Aligned Window - Channel %d', ch), 'FontSize', 16)
+% 
+% % ----------------------------
+% nexttile  % Top-right (Response Aligned)
+% nConRes = size(resConMatrix, 1);
+% nInRes  = size(resInMatrix, 1);
+% 
+% meanCon = mean(resConMatrix(:, timeWindowRes), 1);
+% semCon  = std(resConMatrix(:, timeWindowRes), [], 1) / sqrt(nConRes);
+% 
+% meanIn = mean(resInMatrix(:, timeWindowRes), 1);
+% semIn  = std(resInMatrix(:, timeWindowRes), [], 1) / sqrt(nInRes);
+% 
+% fill([resT(timeWindowRes), fliplr(resT(timeWindowRes))], [meanCon + semCon, fliplr(meanCon - semCon)], ...
+%     [0.8 0.8 1], 'EdgeColor', 'none', 'FaceAlpha', 0.3); hold on
+% fill([resT(timeWindowRes), fliplr(resT(timeWindowRes))], [meanIn + semIn, fliplr(meanIn - semIn)], ...
+%     [1 0.8 0.8], 'EdgeColor', 'none', 'FaceAlpha', 0.3);
+% plot(resT(timeWindowRes), meanCon, 'b-', 'LineWidth', 1.5)
+% plot(resT(timeWindowRes), meanIn, 'r-', 'LineWidth', 1.5)
+% title(sprintf('Response Aligned Window - Channel %d', ch), 'FontSize', 16)
+% 
+% % ----------------------------
+% nexttile  % Bottom-left (Stimulus p-values)
+% plot(t,p1)
+% yline(0.1,'m--','alpha=0.10','LabelHorizontalAlignment', 'left')
+% yline(0.05,'r--')
+% title('p value')
+% 
+% % ----------------------------
+% nexttile  % Bottom-right (Response p-values)
+% plot(resT,p2)
+% yline(0.1,'m--','alpha=0.10','LabelHorizontalAlignment', 'left')
+% yline(0.05,'r--')
+% title('p value')
+% 
