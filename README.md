@@ -1,7 +1,7 @@
-testRun2.m - apply decoding and plot
+**testRun2.m - apply decoding and plot**
 - plotting requires some manuvering and uncommenting 
 
-extractChronuxFeatures3_1.m - ** most recent **
+**extractChronuxFeatures3_1.m - most recent**
 - Extract power for whole signal + other changes
 
 - must run preprocessing step first to generate features file, then conflict modulation step
