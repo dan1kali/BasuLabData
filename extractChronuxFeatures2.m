@@ -21,24 +21,28 @@ toc
 
 %% Testing conflict mod on one patient (must preprocess and extract features first)
 
-patientList = {'BW42','MG51b'};  % BW42, MG51b
+patientList = {'BW42'};  % BW42, MG51b
 
 tic
 for i = 1:length(patientList)
     patient = patientList{i};
     fprintf('Running conflictModAnalysis for patient: %s\n', patient);
-    conflictModChan = conflictModAnalysis( ...
+    patientConflictModChans = conflictModAnalysis( ...
+                    patient, ...
         features.(['powerTimeData_' patient]), ...
         features.(['powerData_' patient]), ...
         features.(['trialsC_' patient]), ...
         features.(['trialsI_' patient]), ...
         features.(['responseTimes_' patient]));
-    conflictModChanIndices = find(conflictModChan==1);
-    conflictModChans.(['selectedChan_' patient '_confMod_a10']) = conflictModChanIndices;
+
+    fNames = fieldnames(patientConflictModChans);
+    for k = 1:numel(fNames)
+        conflictModChans.(fNames{k}) = patientConflictModChans.(fNames{k});
+    end
+
 end
 toc
-% save('features.mat', 'features');
-save('conflictModChans_zscores_70_110.mat', 'conflictModChans');
+save('conflictModChans.mat', 'conflictModChans');
 
 %% functions
 
@@ -130,7 +134,7 @@ function [features] = preProcess(patient)
 
 end
 
-function [finalChannelList] = conflictModAnalysis(PowerTimeData, PowerData, Trials_C_clean, Trials_I_clean, responseTimes)
+function [conflictModChans] = conflictModAnalysis(patient,PowerTimeData, PowerData, Trials_C_clean, Trials_I_clean, responseTimes)
 
     %%%%%%%%%%%%%%%%% Electrode Responsiveness Analysis %%%%%%%%%%%%%%%%%
 
@@ -178,6 +182,7 @@ function [finalChannelList] = conflictModAnalysis(PowerTimeData, PowerData, Tria
             end
         end
     end
+    %% 
 
 
     %%%%%%%%%%%%%%%%% Conflict Modulation Analysis %%%%%%%%%%%%%%%%%
@@ -250,11 +255,20 @@ function [finalChannelList] = conflictModAnalysis(PowerTimeData, PowerData, Tria
         %%%%% can try changing to 100 ms --> 10 10ms bins %%%%
     
         conflictModChan(ch) = isConflictMod;
+        conflictModChanIndices = find(conflictModChan==1);
+
     end
         
     finalChannelList = conflictModChan & responsiveChannels;
     fprintf('\n%d/%d channels (%.2f%%) are conflict modulated.\nWith alpha = %.2f, # permutations = %d\n', ...
     sum(finalChannelList), nChannels, 100 * sum(finalChannelList) / nChannels, alpha, nPermutations);
+    
+    conflictModChans = struct();
+    conflictModChans.(['selectedChan_' patient '_confMod_a10']) = conflictModChanIndices;
+    
+    % moved this over from extractChronuxFeatures3, never fixed
+    % conflictModChans.(['conPowerFeatures_' patient]) = conPowerFeatures;
+    % conflictModChans.(['inPowerFeatures_' patient]) = inPowerFeatures;
 end
 
 
@@ -286,7 +300,7 @@ function [band_power_mean_max, normalized_band_power, power_time_data] = extract
             params = struct();
             %params.fpass = [70 110];  % frequency band you want to analyze
 
-            [Snorm,~,~,~]=computeNormalizedFreqMag(data{tr}(ch,:),1000,params);
+            [Snorm,t,~,~]=computeNormalizedFreqMag(data{tr}(ch,:)',1000,params);
 
             normalized_band_power {tr}(ch,:) = Snorm;  % all band power
             t = t + timeData{1}(1);  % shift t so its zero corresponds to 0 s in original time
@@ -333,7 +347,7 @@ end
 if strcmp(params.norm_option,'median')
     m=median(S,1);
 elseif strcmp(params.norm_option,'mean')
-    m=mean(S,1); % collapses across time - 1 mean for each frequency bin
+    m=mean(S,1); % collapses across time - 1 time mean for each frequency bin
 end
 
 y=mean(S./repmat(m,size(S,1),1),2); % mean power for each trial and channel
