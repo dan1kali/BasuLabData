@@ -1,9 +1,18 @@
-%addpath_recurse('functions_general');
-load(fullfile('features.mat'));
+% addpath_recurse('functions_general');
+% load(fullfile('features_epoched_power1.mat'));
+% load(fullfile('features_sub16.mat'));
 tic
 
-n = 59;   % At least 34 correct trials
-subjects = {'BW42','MG51b'}; % BW42, MG51b
+n = 40;   % At least 34 correct trials
+subjects = {'MG116', 'MG117', 'MG120'}; % BW42, MG51b, sub16
+input = conflictModChans;  % or conflictModChans
+
+% 'BW42', 'MG51b', 'MG79', 'MG86', 
+% 'MG89', 'MG90', 'MG95' 
+% 'MG96', 'MG99', 'MG102' 
+% 'MG105', 'MG111', 'MG112',
+% 'MG116', 'MG117', 'MG120'
+% sub16, sub4
 
 for i_randsamp = 1:50
 m_number = 1;
@@ -11,7 +20,7 @@ fea_number_con = [];
 fea_number_in = [];
 
     for i_sub = 1:length(subjects)
-        [fea_con_tmp, fea_in_tmp, m_number] = concatenateFeatures(features,subjects{i_sub}, m_number, n);
+        [fea_con_tmp, fea_in_tmp, m_number] = concatenateFeatures(features,input, subjects{i_sub}, m_number, n);
         fea_number_con = [fea_number_con, fea_con_tmp]; % Concatenate horizontally
         fea_number_in = [fea_number_in, fea_in_tmp];
     end
@@ -24,12 +33,12 @@ fea_number_in = [];
         % Number
         [train_ind, test_ind,n_test] = generateCrossValInd(n_sample); % n_sample = 52;
         for i = 1:10 % 10-fold 
-            X_train = [fea_number_con(train_ind(i,:),:);fea_number_in(train_ind(i,:),:)];
+            X_train = [fea_number_con(train_ind(i,:),:);fea_number_in(train_ind(i,:),:)]; % made real
             Y_train = [zeros(n_sample-n_test,1);ones(n_sample-n_test,1)];
-            Mdl = fitcsvm(X_train,Y_train,'Standardize',true,'KernelFunction','linear');
+            Mdl = fitcsvm(real(X_train),Y_train,'Standardize',true,'KernelFunction','linear');
 
             X_test = [fea_number_con(test_ind(i,:),:);fea_number_in(test_ind(i,:),:)];
-            labels = predict(Mdl,X_test);
+            labels = predict(Mdl,real(X_test)); % made real
             Y_test = [zeros(n_test,1);ones(n_test,1)]; % ground truth
             n_correct = 0;
             for j = 1:length(labels)
@@ -60,32 +69,37 @@ for i = 1:length(x)
         'center','VerticalAlignment', 'bottom','FontSize', 10);
 end
 
-xticks([1 2 3]); xticklabels({'Original','Permutation Test','Visual'});xlabel('Channel Rejection Method');
+xticks([1 2 3 4 5]); xticklabels({'Band Power','Z Scores'});xlabel('Features Extraction Location');
 
 ylim([00 100])
-xlim([0 4])
-line([0 6],[50 50],'color','k','linestyle','--','linewidth',1.5)
+xlim([0 3])
+line([0 7],[50 50],'color','k','linestyle','--','linewidth',1.5)
 ylabel('Accuracy (%)');
-title('10 fold cross validation SVM with 50 sessions');
+title('Group 2 - 10 fold C-V, 50 sessions','FontSize',16);
 set(gca,'fontsize', 10,'box','off','FontName','Arial','tickDir','out')
 toc
 
 %% functions
 
-function [fea_number_con, fea_number_in, m_number_out] = concatenateFeatures(features, subject, m_number, n)
+function [fea_number_con, fea_number_in, m_number_out] = concatenateFeatures(features,chanInputStruct,subject, m_number, n)
     fea_number_con = [];
     fea_number_in = [];
 
     sel_chan_number = features.(['selectedChan_' subject]);
-    % sel_chan_number = features.(['selectedChan_' subject '_confMod_a10' ]);
-    % sel_chan_number = features.selectedChan_BW42_confMod_vis;
+    % sel_chan_number = chanInputStruct.(['selectedChan_' subject '_confMod_a10' ]);
+
+    [sel_chan_number, conPower, inPower] = getSelectedChannels(chanInputStruct, subject);
 
     if ~isempty(sel_chan_number)
-        conPower = features.(['conPowerFeatures_' subject]);
-        inPower = features.(['inPowerFeatures_' subject]);
+        % conPower = features.(['conPowerFeatures_' subject]); % band power
+        % inPower = features.(['inPowerFeatures_' subject]);
+        conPower = chanInputStruct.(['conPowerFeatures_' subject]); % z scores
+        inPower = chanInputStruct.(['inPowerFeatures_' subject]);
 
         for i = 1:length(sel_chan_number)
+        % for i = 1:size(conPower{1},1)
             ch = sel_chan_number(i);
+            % ch = i; %%%% use this when using features.selectedChan %%%%%
 
             % --- Max Power: Pull from Column 2 ---
             tent1 = cellfun(@(x) x(ch,2), conPower);  % con max across trials
@@ -103,5 +117,29 @@ function [fea_number_con, fea_number_in, m_number_out] = concatenateFeatures(fea
         end
 
         m_number_out = m_number;
+    end
+end
+
+
+
+function [sel_chan_number, conPower, inPower] = getSelectedChannels(inputStruct, subject)
+    selChanField = ['selectedChan_' subject];
+    confModChanField = ['selectedChan_' subject '_confMod_a10'];
+    
+    conPowerField = ['conPowerFeatures_' subject];
+    inPowerField = ['inPowerFeatures_' subject];
+
+    if isfield(inputStruct, selChanField)
+        sel_chan_number = inputStruct.(selChanField);
+    elseif isfield(inputStruct, confModChanField)
+        sel_chan_number = inputStruct.(confModChanField);
+    end
+
+    if isfield(inputStruct, conPowerField)
+        conPower = inputStruct.(conPowerField);
+    end
+
+    if isfield(inputStruct, inPowerField)
+        inPower = inputStruct.(inPowerField);
     end
 end
