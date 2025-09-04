@@ -461,26 +461,3 @@ y=mean(S./repmat(m,size(S,1),1),2); % mean power for each trial and channel
 % y=mean(S,2); % mean power for each trial and channel
 
 end
-
-
-%% Future Concerns
-
-% 1) how ft_data3_filt is passed to ft_data3_clean only for .trials
-% otherwise ft_data3_clean takes everything from ft_data3
-% relies on time and sampleinfo matching
-
-% but if doesn't take from ft_data3, then no initialization for
-% Trials_C/Trials_I
-
-% 2) how preprocess loads data
-% instead of taking data as argument for everything, loads and names
-% ft_data3 --> not dynamic
-
-% 4) making window size (15) in conflictModAnalysis dynamic
-
-
-%% Questions
-
-% 3) for responsive testing, ok to see if zscore>1 etc in ANY trial, to greenlight electrode?
-
-% 4) is the z score calculation correct.?
