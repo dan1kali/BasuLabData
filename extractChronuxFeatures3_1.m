@@ -2,61 +2,76 @@
 
 %% Preprocess and extract features
 
-% use this if sub16:
-% - use preProcessTheirData
+% use preProcessTheirData if their sub
 
 tic
-files = {'BW42'}; % BW42, MG51b, sub16, sub4
+files = {'MG116', 'MG117', 'MG118', 'MG120', ...
+         }; 
+% 'BW42', 'MG51b', 'MG79', 'MG86', 
+% 'MG89', 'MG90', 'MG91', 'MG95', 
+% 'MG96', 'MG99', 'MG102', 'MG104', 
+% 'MG105', 'MG106', 'MG111', 'MG112',
+% 'MG116', 'MG117', 'MG118', 'MG120'
+
 features = struct();
 
 for i = 1:length(files)
-    patientFeatures = preProcess(files{i});
-    % patientFeatures = preProcessTheirData(files{i});
+    try
+        fprintf('\nProcessing patient %s\n', files{i});
+        patientFeatures = preProcess(files{i});
+        % patientFeatures = preProcessTheirData(files{i});
 
-    fNames = fieldnames(patientFeatures);
-    for k = 1:numel(fNames)
-        features.(fNames{k}) = patientFeatures.(fNames{k});
+        fNames = fieldnames(patientFeatures);
+        for k = 1:numel(fNames)
+            features.(fNames{k}) = patientFeatures.(fNames{k});
+        end
+    catch ME
+        fprintf('Error processing patient %s: %s\n', files{i}, ME.message);
+        continue;
     end
-
 end
-
-save('features_epoched_power_squeeze.mat','features');
 toc
 
-% 60 sec?
+save('features_squeeze5.mat','features','-v7.3');
+
 
 %% Testing conflict mod on one patient (must preprocess and extract features first)
 
 % use this if sub16:
 % conflictModAnalysisTheirData
 
-patientList = {'BW42'};  % BW42, MG51b, sub16
+patientList = {'MG116', 'MG117', 'MG120'};  % BW42, MG51b, sub16
 
 tic
 for i = 1:length(patientList)
-    patient = patientList{i};
-    fprintf('Running conflictModAnalysis for patient: %s\n', patient);
-   %         patient, ...
+    try
+        patient = patientList{i};
+        fprintf('\nRunning conflictModAnalysis for patient: %s\n', patient);
+       %         patient, ...
+    
+        patientConflictModChans = conflictModAnalysis( ...
+            patient, ...
+            features.(['powerTimeData_' patient]), ...
+            features.(['powerData_' patient]), ...
+            features.(['trialsC_' patient]), ...
+            features.(['trialsI_' patient]), ...
+            features.(['responseTimes_' patient]));
+    
+        fNames = fieldnames(patientConflictModChans);
+        for k = 1:numel(fNames)
+            conflictModChans.(fNames{k}) = patientConflictModChans.(fNames{k});
+        end
 
-    patientConflictModChans = conflictModAnalysis( ...
-        patient, ...
-        features.(['powerTimeData_' patient]), ...
-        features.(['powerData_' patient]), ...
-        features.(['trialsC_' patient]), ...
-        features.(['trialsI_' patient]), ...
-        features.(['responseTimes_' patient]));
-
-    fNames = fieldnames(patientConflictModChans);
-    for k = 1:numel(fNames)
-        conflictModChans.(fNames{k}) = patientConflictModChans.(fNames{k});
+    catch ME
+        fprintf('Error processing patient %s: %s\n', patientList{i}, ME.message);
+        continue;
     end
 
 end
 toc
 
-% save('conflictModChans_zscores_70_110.mat', 'conflictModChans');
-% save('conflictModChans_epoched_power2.mat', 'conflictModChans');
-save('conflictModChans_sub1.mat', 'conflictModChans');
+save('conflictModChans_squeeze5.mat', 'conflictModChans');
+% save('conflictModChans_squeeze2.mat', 'conflictModChans','-v7.3');
 
 
 %% functions
@@ -126,20 +141,25 @@ function [features] = preProcess(patient)
     
     timeData = ft_data_clean.time;
     selectedChannels = ft_data3.label;
-    mask1 = ~ismember(selectedChannels, ch_ictal);
-    mask2 = ~strcmp(Parcellation_Sided_v3, 'RNan') & ~strcmp(Parcellation_Sided_v3, 'LNan');
-    selectedChannels = find(mask1 & mask2);
+    if exist('ch_ictal', 'var')
+        mask1 = ~ismember(selectedChannels, ch_ictal);
+        if exist('Parcellation_Sided_v3', 'var')
+            mask2 = ~strcmp(Parcellation_Sided_v3, 'RNan') & ~strcmp(Parcellation_Sided_v3, 'LNan');
+            selectedChannels = find(mask1 & mask2);
+        else
+            selectedChannels = find(mask1);
+        end
+    end
+    [PowerFeatures, PowerData, PowerTimeData] = extractPowerFeatures3_1(ft_data_clean.trial, timeData, responseTimes);
 
-    [~, PowerData, PowerTimeData] = extractPowerFeatures3_1(ft_data_clean.trial, timeData, responseTimes);
-
-    % conPowerFeatures = PowerFeatures(Trials_C_clean);
-    % inPowerFeatures  = PowerFeatures(Trials_I_clean);
+    conPowerFeatures = PowerFeatures(Trials_C_clean);
+    inPowerFeatures  = PowerFeatures(Trials_I_clean);
 
     features = struct();
     features.(['powerData_' patient]) = PowerData;
     features.(['powerTimeData_' patient]) = PowerTimeData;
-    % features.(['conPowerFeatures_' patient]) = conPowerFeatures;
-    % features.(['inPowerFeatures_' patient]) = inPowerFeatures;
+    features.(['conPowerFeatures_' patient]) = conPowerFeatures;
+    features.(['inPowerFeatures_' patient]) = inPowerFeatures;
     features.(['selectedChan_' patient]) = selectedChannels;
     features.(['responseTimes_' patient]) = responseTimes;
     features.(['trialsC_' patient]) = Trials_C_clean;
@@ -149,11 +169,9 @@ end
 
 function [conflictModChans] = conflictModAnalysis(patient,PowerTimeData, PowerData, Trials_C_clean, Trials_I_clean, responseTimes)
 
-
 % no more cell array, each trial of time x channels fed into spectrogram.
 % output per cell: [freq x time × Nchannels]
-
-% Need to change all nChannels, dimensions accordingly
+% Changed all nChannels, dimensions accordingly
 
     nConTrials = length(Trials_C_clean);
     nInTrials = length(Trials_I_clean);
@@ -183,7 +201,7 @@ function [conflictModChans] = conflictModAnalysis(patient,PowerTimeData, PowerDa
 
             % ~~~~~~~~~~~~~~~~ Extract Baseline Power ~~~~~~~~~~~~~~~~~~~~
             
-            % Cut time window to baseline: [-0.5s, , 0]
+            % Cut time window to baseline: [-0.5s, 0]
             tBaselineWindow = t >= -0.5 & t <= 0; 
             % tBaselineWindow = t >= 1 & t <= 1.5; 
             S_baseline = PowerData{tr}(:,tBaselineWindow,ch);
@@ -199,12 +217,15 @@ function [conflictModChans] = conflictModAnalysis(patient,PowerTimeData, PowerDa
             % ~~~~~~~~~~~~~~~~ Whole Signal Power ~~~~~~~~~~~~~~~~~~~~
 
             % Power during whole signal over time, per channel/trial
-            % Try during [-0.5s onward] 
-            t_orig = t;
-            t = t(t>= -0.5);
-            t_idx = t_orig >= -0.5;
             
-            S_power = PowerData{tr}(:,t_idx,ch);
+            % Try during [-0.5s onward] 
+            % t_orig = t;
+            % t = t(t>= -0.5);
+            % t_idx = t_orig >= -0.5;
+            
+
+            % trying whole signal
+            S_power = PowerData{tr}(:,:,ch);
 
             m = mean(S_power,2); 
             expanded_m = repmat(m,1,size(S_power,2));
@@ -244,7 +265,7 @@ function [conflictModChans] = conflictModAnalysis(patient,PowerTimeData, PowerDa
 
         band_power_mean_max{tr} = zeros(nChannels, 2);
         
-        for ch=1:nChannels
+        % for ch=1:nChannels
             
             % ~~~~~~~~~~~~~~~~~~~~~~ Save features ~~~~~~~~~~~~~~~~~~~~~~
             
@@ -254,10 +275,10 @@ function [conflictModChans] = conflictModAnalysis(patient,PowerTimeData, PowerDa
             S_epoched = band_power_zscore{tr}(:,tWindow);
 
             % [1st column - mean, 2nd column - max]
-            band_power_mean_max{tr}(ch,1) = mean(S_epoched(:));  % mean over time
-            band_power_mean_max{tr}(ch,2) = max(S_epoched(:));   % max over time
+            band_power_mean_max{tr}(:,1) = mean(S_epoched, 2);  % mean over time
+            band_power_mean_max{tr}(:,2) = max(S_epoched, [],2);   % max over time
 
-        end
+        % end
     end
 
     conPowerFeatures = band_power_mean_max(Trials_C_clean);
@@ -368,7 +389,6 @@ function [features] = preProcessTheirData(patient)
     
     nChannels = length(allData.(patientResName));
     nTrials = length(allData.congruency_number);
-    nTime = size(allData.(patientResName){1}, 2);
 
     cleanedData.vrt_number = (allData.vrt_number/1000)';
     allData.vrt_number = repmat(allData.vrt_number', 1, nChannels);
@@ -393,10 +413,11 @@ function [features] = preProcessTheirData(patient)
     % allData.correct_number         = allData.correct_number(selectedChannels);
     nChannels = length(selectedChannels);  % Update channel count
 
+    nTime = size(allData.(patientResName){1}, 2);
     incorrect_indices = find(allData.correct_number==0);
     nanRow = NaN(1, nTime);
 
-    % Populate with NaNs for artifact rows that were eliminated
+    % Populate with NaNs for artifact trial rows that were eliminated
     for ch = 1:nChannels
         channelData = allData.(patientResName){ch};
         for i_cor = 1:length(incorrect_indices)
@@ -431,7 +452,7 @@ function [features] = preProcessTheirData(patient)
     Trials_C_clean = cleanedData.Trials_C;
     Trials_I_clean = cleanedData.Trials_I;
 
-    % no need to extract power bc their data is already power z scores
+    % no need to turn into power bc their data is already power z scores
     % [PowerFeatures, PowerData, PowerTimeData] = extractPowerFeatures(cleanedData.trial, timeData, responseTimes);
 
     % A01_gamma_number_sub16{i_channel} = trials_matrix; 
@@ -480,12 +501,13 @@ function [features] = preProcessTheirData(patient)
 
 end
 
-function [finalChannelList] = conflictModAnalysisTheirData(TimeData, PowerData, Trials_C_clean, Trials_I_clean, responseTimes)
+function [conflictModChans] = conflictModAnalysisTheirData(patient,TimeData, PowerData, Trials_C_clean, Trials_I_clean, responseTimes)
 
     %%%%%%%%%%%%%%%%% Electrode Responsiveness Analysis %%%%%%%%%%%%%%%%%
 
     nConTrials = length(Trials_C_clean);
     nInTrials = length(Trials_I_clean);
+    nTrials = length(PowerData);
 
     %%%%%%% diferent form, channels is first dimension here
     % because PowerData isnt a cell array of cells anymore
@@ -510,7 +532,7 @@ function [finalChannelList] = conflictModAnalysisTheirData(TimeData, PowerData, 
             trialIdx = Trials_C_clean(tr_c);
             
             % Check where z-score > 1 during window [onset time, avg RT]
-            meanRT = mean(responseTimes);
+            meanRT = nanmean(responseTimes);
             above = band_power_zscore{trialIdx}(ch, stimT >= -meanRT & stimT <= 0) > 1;
     
             % Find all runs of true values, check if long enough
@@ -524,6 +546,36 @@ function [finalChannelList] = conflictModAnalysisTheirData(TimeData, PowerData, 
             end
         end
     end
+
+    %%%%%%%%%%%%%%%%%%%%% Feature Extraction From Z scores %%%%%%%%%%%%%%%% 
+    
+    band_power_mean_max = cell(1, nTrials); % {trial} [column 1 = mean, column 2 = max]
+
+    for tr=1:nTrials
+
+        band_power_mean_max{tr} = zeros(nChannels, 2);
+        
+        % for ch=1:nChannels
+            
+            % ~~~~~~~~~~~~~~~~~~~~~~ Save features ~~~~~~~~~~~~~~~~~~~~~~
+            
+            t = stimT;
+
+            % Cut time window: only look at stimulus onset to behavioral response
+            % tWindow = t >= 0 & t <= responseTimes(tr); 
+            tWindow = t >= 0 & t <= meanRT; 
+
+            S_epoched = band_power_zscore{tr}(:,tWindow);
+
+            % [1st column - mean, 2nd column - max]
+            band_power_mean_max{tr}(:,1) = mean(S_epoched,2);  % mean over time
+            band_power_mean_max{tr}(:,2) = max(S_epoched,[],2);   % max over time
+
+        % end
+    end
+
+    conPowerFeatures = band_power_mean_max(Trials_C_clean);
+    inPowerFeatures  = band_power_mean_max(Trials_I_clean);
 
 
 
@@ -603,11 +655,18 @@ function [finalChannelList] = conflictModAnalysisTheirData(TimeData, PowerData, 
         %%%%% can try changing to 100 ms --> 10 10ms bins %%%%
     
         conflictModChan(ch) = isConflictMod;
+        conflictModChanIndices = find(conflictModChan==1);
+
     end
         
     finalChannelList = conflictModChan & responsiveChannels;
     fprintf('\n%d/%d channels (%.2f%%) are conflict modulated.\nWith alpha = %.2f, # permutations = %d\n', ...
     sum(finalChannelList), nChannels, 100 * sum(finalChannelList) / nChannels, alpha, nPermutations);
+
+    conflictModChans = struct();
+    conflictModChans.(['selectedChan_' patient '_confMod_a10']) = conflictModChanIndices;
+    conflictModChans.(['conPowerFeatures_' patient]) = conPowerFeatures;
+    conflictModChans.(['inPowerFeatures_' patient]) = inPowerFeatures;
 end
 
 function [band_power_mean_max, normalized_band_power, power_time_data] = extractPowerFeatures3_1(data, timeData, responseTimes)
@@ -663,7 +722,6 @@ function [band_power_mean_max, normalized_band_power, power_time_data] = extract
     end
 end
 
-
 function [y,t,S,f]=computeNormalizedFreqMag(x,Fs,params)
 
 if(nargin < 4)
@@ -703,7 +761,6 @@ y=mean(S./repmat(m,size(S,1),1),2); % mean power for each trial and channel
 % y=mean(S,2); % mean power for each trial and channel
 
 end
-
 
 function [newdata, nTrials, nChannels] = channel2trial(data)
     % channel2trial
