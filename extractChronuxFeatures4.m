@@ -1,77 +1,62 @@
+%% Instructions
 
+% Assume your data is all in a subdirectory called "patientData"
 
-%% Preprocess and extract features
-
-tic
-files = {'MG118'}; 
+% Files:
 % 'BW42', 'MG51b', 'MG79', 'MG86', 
 % 'MG89', 'MG90', 'MG91', 'MG95', 
 % 'MG96', 'MG99', 'MG102', 'MG104', 
 % 'MG105', 'MG106', 'MG111', 'MG112',
 % 'MG116', 'MG117', 'MG118', 'MG120'
 
-features = struct();
+% 1) Preprocess for a given patient(s)
+%   - Extracts power data, and generates features from that power data (not
+%   z scores)
+%   - saved in a directory called outputData
+
+% 2) Then apply conflict modulation analysis
+%   - this creates indices for conflict modulation
+%   - and features from z-scored band power
+
+
+%% 1) Preprocess
+
+tic
+files = {'BW42'}; 
 
 for i = 1:length(files)
     try
         fprintf('\nProcessing patient %s\n', files{i});
-        patientFeatures = preProcess(files{i});
-
-        fNames = fieldnames(patientFeatures);
-        for k = 1:numel(fNames)
-            features.(fNames{k}) = patientFeatures.(fNames{k});
-        end
-    catch MhE
+        preProcess(files{i});
+    catch ME
         fprintf('Error processing patient %s: %s\n', files{i}, ME.message);
         continue;
     end
 end
 toc
 
-save('features_MG118.mat','features');
-% save('features_squeeze.mat','features','-v7.3');
+%% 2) Conflict Mod Analysis
 
-
-%% Testing conflict mod on one patient (must preprocess and extract features first)
-
-patientList = {'MG118'};  % BW42, MG51b, sub16
+patients = {'BW42'};  % BW42, MG51b, sub16
 
 tic
-for i = 1:length(patientList)
+for i = 1:length(patients)
     try
-        patient = patientList{i};
-        fprintf('\nRunning conflictModAnalysis for patient: %s\n', patient);
-    
-        patientConflictModChans = conflictModAnalysis( ...
-            patient, ...
-            features.(['powerTimeData_' patient]), ...
-            features.(['powerData_' patient]), ...
-            features.(['trialsC_' patient]), ...
-            features.(['trialsI_' patient]), ...
-            features.(['responseTimes_' patient]));
-    
-        fNames = fieldnames(patientConflictModChans);
-        for k = 1:numel(fNames)
-            conflictModChans.(fNames{k}) = patientConflictModChans.(fNames{k});
-        end
-
+        fprintf('\nRunning conflictModAnalysis for patient: %s\n', patients{i});
+        conflictModAnalysis(patients{i});
     catch ME
-        fprintf('Error processing patient %s: %s\n', patientList{i}, ME.message);
+        fprintf('Error processing patient %s: %s\n', patients{i}, ME.message);
         continue;
     end
 
 end
 toc
 
-save('conflictModChans_MG118.mat', 'conflictModChans');
-% save('conflictModChans_squeeze2.mat', 'conflictModChans','-v7.3');
-
-
 %% functions
 
-function [features] = preProcess(patient)
+function preProcess(patient)
     load(fullfile('patientData', patient));
-    % [~, patient, ~] = fileparts(filename);
+    outputName = patient;
 
     %%%%%%%%%%%%%%%%% Filtering %%%%%%%%%%%%%%%%%
 
@@ -139,26 +124,40 @@ function [features] = preProcess(patient)
     end
     [PowerFeatures, PowerData, PowerTimeData] = extractPowerFeatures3_1(ft_data_clean.trial, timeData, responseTimes);
 
-    conPowerFeatures = PowerFeatures(Trials_C_clean);
-    inPowerFeatures  = PowerFeatures(Trials_I_clean);
+    conBandPowerFeatures = PowerFeatures(Trials_C_clean);
+    inBandPowerFeatures  = PowerFeatures(Trials_I_clean);
 
-    features = struct();
-    features.(['powerData_' patient]) = PowerData;
-    features.(['powerTimeData_' patient]) = PowerTimeData;
-    features.(['conPowerFeatures_' patient]) = conPowerFeatures;
-    features.(['inPowerFeatures_' patient]) = inPowerFeatures;
-    features.(['selectedChan_' patient]) = selectedChannels;
-    features.(['responseTimes_' patient]) = responseTimes;
-    features.(['trialsC_' patient]) = Trials_C_clean;
-    features.(['trialsI_' patient]) = Trials_I_clean;
+    outputFolder = fullfile('outputData', outputName);
+    if ~exist(outputFolder, 'dir')
+        mkdir(outputFolder);
+    end
+
+    save(fullfile(outputFolder, 'powerData.mat'), 'PowerData');
+    save(fullfile(outputFolder, 'powerTimeData.mat'), 'PowerTimeData');
+    save(fullfile(outputFolder, 'conBandPowerFeatures.mat'), 'conBandPowerFeatures');
+    save(fullfile(outputFolder, 'inBandPowerFeatures.mat'), 'inBandPowerFeatures');
+    save(fullfile(outputFolder, 'selectedChan.mat'), 'selectedChannels');
+    save(fullfile(outputFolder, 'responseTimes.mat'), 'responseTimes');
+    save(fullfile(outputFolder, 'trialsC.mat'), 'Trials_C_clean');
+    save(fullfile(outputFolder, 'trialsI.mat'), 'Trials_I_clean');
 
 end
 
-function [conflictModChans] = conflictModAnalysis(patient,PowerTimeData, PowerData, Trials_C_clean, Trials_I_clean, responseTimes)
+function conflictModAnalysis(patient)
 
 % no more cell array, each trial of time x channels fed into spectrogram.
 % output per cell: [freq x time × Nchannels]
 % Changed all nChannels, dimensions accordingly
+
+    inputPath = fullfile('outputData', patient);
+    outputName = patient;
+    
+    filesToLoad = {'powerData.mat', 'powerTimeData.mat', ...
+        'selectedChan.mat','responseTimes.mat', 'trialsC.mat', 'trialsI.mat'};
+    
+    for i = 1:length(filesToLoad)
+        load(fullfile(inputPath, filesToLoad{i}));
+    end
 
     nConTrials = length(Trials_C_clean);
     nInTrials = length(Trials_I_clean);
@@ -341,7 +340,7 @@ function [conflictModChans] = conflictModAnalysis(patient,PowerTimeData, PowerDa
         %%%%% can try changing to 100 ms --> 10 10ms bins %%%%
     
         conflictModChan(ch) = isConflictMod;
-        conflictModChanIndices = find(conflictModChan==1);
+        conflictModChans = find(conflictModChan==1);
 
     end
         
@@ -349,11 +348,15 @@ function [conflictModChans] = conflictModAnalysis(patient,PowerTimeData, PowerDa
     fprintf('\n%d/%d channels (%.2f%%) are conflict modulated.\nWith alpha = %.2f, # permutations = %d\n', ...
     sum(finalChannelList), nChannels, 100 * sum(finalChannelList) / nChannels, alpha, nPermutations);
     
-    conflictModChans = struct();
-    conflictModChans.(['selectedChan_' patient '_confMod_a10']) = conflictModChanIndices;
-    conflictModChans.(['conPowerFeatures_' patient]) = conPowerFeatures;
-    conflictModChans.(['inPowerFeatures_' patient]) = inPowerFeatures;
+    outputFolder = fullfile('outputData', outputName);
+    if ~exist(outputFolder, 'dir')
+        mkdir(outputFolder);
+    end
 
+    save(fullfile(outputFolder, 'conflictModChans.mat'), 'conflictModChans');
+    save(fullfile(outputFolder, 'powerTimeData.mat'), 'PowerTimeData');
+    save(fullfile(outputFolder, 'conPowerFeatures.mat'), 'conPowerFeatures');
+    save(fullfile(outputFolder, 'inPowerFeatures.mat'), 'inPowerFeatures');
 end
 
 function [band_power_mean_max, normalized_band_power, power_time_data] = extractPowerFeatures3_1(data, timeData, responseTimes)
