@@ -2,11 +2,8 @@
 
 %% Preprocess and extract features
 
-% use preProcessTheirData if their sub
-
 tic
-files = {'MG116', 'MG117', 'MG118', 'MG120', ...
-         }; 
+files = {'MG118'}; 
 % 'BW42', 'MG51b', 'MG79', 'MG86', 
 % 'MG89', 'MG90', 'MG91', 'MG95', 
 % 'MG96', 'MG99', 'MG102', 'MG104', 
@@ -19,35 +16,31 @@ for i = 1:length(files)
     try
         fprintf('\nProcessing patient %s\n', files{i});
         patientFeatures = preProcess(files{i});
-        % patientFeatures = preProcessTheirData(files{i});
 
         fNames = fieldnames(patientFeatures);
         for k = 1:numel(fNames)
             features.(fNames{k}) = patientFeatures.(fNames{k});
         end
-    catch ME
+    catch MhE
         fprintf('Error processing patient %s: %s\n', files{i}, ME.message);
         continue;
     end
 end
 toc
 
-save('features_squeeze5.mat','features','-v7.3');
+save('features_MG118.mat','features');
+% save('features_squeeze.mat','features','-v7.3');
 
 
 %% Testing conflict mod on one patient (must preprocess and extract features first)
 
-% use this if sub16:
-% conflictModAnalysisTheirData
-
-patientList = {'MG116', 'MG117', 'MG120'};  % BW42, MG51b, sub16
+patientList = {'MG118'};  % BW42, MG51b, sub16
 
 tic
 for i = 1:length(patientList)
     try
         patient = patientList{i};
         fprintf('\nRunning conflictModAnalysis for patient: %s\n', patient);
-       %         patient, ...
     
         patientConflictModChans = conflictModAnalysis( ...
             patient, ...
@@ -70,30 +63,24 @@ for i = 1:length(patientList)
 end
 toc
 
-save('conflictModChans_squeeze5.mat', 'conflictModChans');
+save('conflictModChans_MG118.mat', 'conflictModChans');
 % save('conflictModChans_squeeze2.mat', 'conflictModChans','-v7.3');
 
 
 %% functions
 
 function [features] = preProcess(patient)
-    load(fullfile('patientData',patient));
+    load(fullfile('patientData', patient));
     % [~, patient, ~] = fileparts(filename);
 
     %%%%%%%%%%%%%%%%% Filtering %%%%%%%%%%%%%%%%%
 
-    cfg = [];
-    cfg.bsfilter = 'yes';                    % bandstop filter (notch)
-    cfg.bsfreq = [55 65; 115 125; 175 185];  % 60, 120, 180 Hz
-    cfg.bsfiltord = 4;
-    cfg.hpfilter = 'yes';                    % high pass filter
-    cfg.hpfreq = 0.5;
-    cfg.hpfiltord = 5;
-    
-    ft_data3_filt = ft_preprocessing(cfg,ft_data3);
+    % got rid of preprocessing since already built in
+
+    ft_data3_filt = ft_data3_filt_rs;
        
-    nTrials = numel(ft_data3.trial);
-    nChannels = numel(ft_data3.label);
+    nTrials = numel(ft_data3_filt.trial);
+    nChannels = numel(ft_data3_filt.label);
 
     %%%%%%%%%%%%%%%%% Artifact Trial Rejection %%%%%%%%%%%%%%%%%
     
@@ -102,8 +89,8 @@ function [features] = preProcess(patient)
     for tr = 1:nTrials
         for ch = 1:nChannels
             % [-1 +2] window needed for artifact rejection
-            timeIdx = ft_data3.time{tr} >= -1 & ft_data3.time{tr} <= 2;
-            signal = ft_data3.trial{tr} (ch, timeIdx); % {trial} [channels x time]
+            timeIdx = ft_data3_filt.time{tr} >= -1 & ft_data3_filt.time{tr} <= 2;
+            signal = ft_data3_filt.trial{tr} (ch, timeIdx); % {trial} [channels x time]
             amplitudes(ch, tr) = max(signal) - min(signal);
         end
     end
@@ -120,13 +107,13 @@ function [features] = preProcess(patient)
     bad_trials = bad_trials';                     % convert to column [trials x 1]
     clean_trials_idx = find(~bad_trials);         % indices of good trials
         
-    % convert rest of ft_data3
-    ft_data_clean = ft_data3;
+    % convert rest of data
+    ft_data_clean = ft_data3_filt;
     ft_data_clean.trial = ft_data3_filt.trial(clean_trials_idx);
-    ft_data_clean.time = ft_data3.time(clean_trials_idx);
-    ft_data_clean.sampleinfo = ft_data3.sampleinfo(clean_trials_idx,:);
+    ft_data_clean.time = ft_data3_filt.time(clean_trials_idx);
+    % ft_data_clean.sampleinfo = ft_data3_filt.sampleinfo(clean_trials_idx,:);
     responseTimes = TrialDet(clean_trials_idx,12);
-    meanResponseTime = mean(responseTimes);
+    % meanResponseTime = mean(responseTimes);
     
     % New congruent/incongruent indices
     [~, loc_C] = ismember(Trials_C, clean_trials_idx);
@@ -140,12 +127,12 @@ function [features] = preProcess(patient)
     %%%%%%%%%%%%%%%%% Feature Extraction %%%%%%%%%%%%%%%%%
     
     timeData = ft_data_clean.time;
-    selectedChannels = ft_data3.label;
+    selectedChannels = ft_data3_filt.label;
     if exist('ch_ictal', 'var')
         mask1 = ~ismember(selectedChannels, ch_ictal);
-        if exist('Parcellation_Sided_v3', 'var')
-            mask2 = ~strcmp(Parcellation_Sided_v3, 'RNan') & ~strcmp(Parcellation_Sided_v3, 'LNan');
-            selectedChannels = find(mask1 & mask2);
+        if exist('ParcellationValues_AllRegs', 'var')
+            mask2 = ParcellationValues_AllRegs(:,1) ~= 1;
+            selectedChannels = find(mask1 | mask2);
         else
             selectedChannels = find(mask1);
         end
