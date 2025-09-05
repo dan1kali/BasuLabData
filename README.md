@@ -1,11 +1,16 @@
-**testRun2.m - apply decoding and plot**
-- plotting requires some manuvering and uncommenting 
+# Files of interest
 
-**extractChronuxFeatures4.m - most recent**
+## extractChronuxFeatures4.m
+**all procedures to generate features**
 - updates for new data + parcellations + preprocessing
 - Updated file format to save in folders
 
-old:
+## testRun2.m
+**apply decoding and plot**
+- plotting requires some manuvering and uncommenting 
+
+
+# Misc/old files
 
 extractChronuxFeatures.m - original with band power not z score
 
