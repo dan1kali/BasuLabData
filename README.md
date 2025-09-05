@@ -3,9 +3,7 @@
 
 **extractChronuxFeatures4.m - most recent**
 - updates for new data + parcellations + preprocessing
-- will update for file format to move away from structure + paralellizing
-
-- must run preprocessing step first to generate features file, then conflict modulation step
+- Updated file format to save in folders
 
 old:
 
