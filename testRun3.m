@@ -15,70 +15,10 @@ subjects = {'BW42'}; % BW42, MG51b
 % 'MG105', 'MG106', 'MG111', 'MG112',
 % 'MG116', 'MG117', 'MG118', 'MG120'
 
-for i_randsamp = 1:50
-m_number = 1;
-fea_number_con = [];
-fea_number_in = [];
+barloc = 2;
+numbars = 5;
+plot(subjects,n,barloc,numbars)
 
-    for i_sub = 1:length(subjects)
-        [fea_con_tmp, fea_in_tmp, m_number] = concatenateFeatures(subjects{i_sub}, m_number, n);
-        fea_number_con = [fea_number_con, fea_con_tmp]; % Concatenate horizontally
-        fea_number_in = [fea_number_in, fea_in_tmp];
-    end
-
-    %% SVM
-
-    n_sample = n;
-
-    for i_iter = 1
-        % Number
-        [train_ind, test_ind,n_test] = generateCrossValInd(n_sample); % n_sample = 52;
-        for i = 1:10 % 10-fold 
-            X_train = [fea_number_con(train_ind(i,:),:);fea_number_in(train_ind(i,:),:)]; % made real
-            Y_train = [zeros(n_sample-n_test,1);ones(n_sample-n_test,1)];
-            Mdl = fitcsvm(real(X_train),Y_train,'Standardize',true,'KernelFunction','linear');
-
-            X_test = [fea_number_con(test_ind(i,:),:);fea_number_in(test_ind(i,:),:)];
-            labels = predict(Mdl,real(X_test)); % made real
-            Y_test = [zeros(n_test,1);ones(n_test,1)]; % ground truth
-            n_correct = 0;
-            for j = 1:length(labels)
-                if labels(j)==Y_test(j)
-                    n_correct = n_correct+1;
-                end
-            end
-            correct_number(i_randsamp,i) = n_correct/length(Y_test)*100;
-            clear Mdl
-        end
-    end
-    
-end 
-
-%% Plot
-
-y = [mean(correct_number(:))];
-err = std(correct_number(:))/sqrt(numel(correct_number)); 
-
-x = 1;
-
-b = bar(x,y,'FaceColor',[0.511 0.515 1],'BarWidth', 0.4);
-
-hold on;
-er = errorbar(x,y,err,err); er.Color = [0 0 0]; er.LineStyle = 'none'; er.CapSize = 5;
-for i = 1:length(x)
-    text(x(i), y(i) + err(i) + 1, sprintf('%.1f', y(i)),'HorizontalAlignment', ...
-        'center','VerticalAlignment', 'bottom','FontSize', 10);
-end
-
-xticks([1 2 3 4 5]); xlim([0 3]);
-xticklabels({'Band Power','Z Scores'});xlabel('Features Extraction Location');
-
-ylim([00 100]); line([0 7],[50 50],'color','k','linestyle','--','linewidth',1.5)
-ylabel('Accuracy (%)');
-
-title('Group 2 - 10 fold C-V, 50 sessions','FontSize',16);
-
-set(gca,'fontsize', 10,'box','off','FontName','Arial','tickDir','out')
 toc
 
 %% functions
@@ -123,4 +63,75 @@ function [fea_number_con, fea_number_in, m_number_out] = concatenateFeatures(sub
 
         m_number_out = m_number;
     end
+end
+
+
+function plot(subjects,n,barloc,numbars)
+
+    for i_randsamp = 1:50
+    m_number = 1;
+    fea_number_con = [];
+    fea_number_in = [];
+    
+        for i_sub = 1:length(subjects)
+            [fea_con_tmp, fea_in_tmp, m_number] = concatenateFeatures(subjects{i_sub}, m_number, n);
+            fea_number_con = [fea_number_con, fea_con_tmp]; % Concatenate horizontally
+            fea_number_in = [fea_number_in, fea_in_tmp];
+        end
+    
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% SVM %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    
+        n_sample = n;
+    
+        for i_iter = 1
+            % Number
+            [train_ind, test_ind,n_test] = generateCrossValInd(n_sample); % n_sample = 52;
+            for i = 1:10 % 10-fold 
+                X_train = [fea_number_con(train_ind(i,:),:);fea_number_in(train_ind(i,:),:)]; % made real
+                Y_train = [zeros(n_sample-n_test,1);ones(n_sample-n_test,1)];
+                Mdl = fitcsvm(real(X_train),Y_train,'Standardize',true,'KernelFunction','linear');
+    
+                X_test = [fea_number_con(test_ind(i,:),:);fea_number_in(test_ind(i,:),:)];
+                labels = predict(Mdl,real(X_test)); % made real
+                Y_test = [zeros(n_test,1);ones(n_test,1)]; % ground truth
+                n_correct = 0;
+                for j = 1:length(labels)
+                    if labels(j)==Y_test(j)
+                        n_correct = n_correct+1;
+                    end
+                end
+                correct_number(i_randsamp,i) = n_correct/length(Y_test)*100;
+                clear Mdl
+            end
+        end
+        
+    end 
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Plot %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    
+    y = [mean(correct_number(:))];
+    err = std(correct_number(:))/sqrt(numel(correct_number)); 
+    
+    x = barloc;
+    
+    bar(x,y,'FaceColor',[0.511 0.515 1],'BarWidth', 0.4);
+    
+    hold on;
+    er = errorbar(x,y,err,err); er.Color = [0 0 0]; er.LineStyle = 'none'; er.CapSize = 5;
+    for i = 1:length(x)
+        text(x(i), y(i) + err(i) + 1, sprintf('%.1f', y(i)),'HorizontalAlignment', ...
+            'center','VerticalAlignment', 'bottom','FontSize', 10);
+    end
+    
+
+    xticks(1:numbars); xlim([0 (numbars+1)]);
+    xticklabels({'Band Power','Z Scores'});xlabel('Features Extraction Location');
+    
+    ylim([00 100]); line([0 7],[50 50],'color','k','linestyle','--','linewidth',1.5)
+    ylabel('Accuracy (%)');
+    
+    title('Group 2 - 10 fold C-V, 50 sessions','FontSize',16);
+    
+    set(gca,'fontsize', 10,'box','off','FontName','Arial','tickDir','out')
+
 end
