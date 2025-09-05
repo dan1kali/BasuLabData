@@ -1,6 +1,7 @@
 %% Instructions
 
 % Assume your data is all in a subdirectory called "patientData"
+% Must have following added to path: chronux_2_12
 
 % Files:
 % 'BW42', 'MG51b', 'MG79', 'MG86', 
@@ -29,7 +30,7 @@ for i = 1:length(files)
         fprintf('\nProcessing patient %s\n', files{i});
         preProcess(files{i});
     catch ME
-        fprintf('Error processing patient %s: %s\n', files{i}, ME.message);
+        fprintf('**** ERROR processing patient %s: %s *****\n', files{i}, ME.message);
         continue;
     end
 end
@@ -116,7 +117,7 @@ function preProcess(patient)
     if exist('ch_ictal', 'var')
         mask1 = ~ismember(selectedChannels, ch_ictal);
         if exist('ParcellationValues_AllRegs', 'var')
-            mask2 = ParcellationValues_AllRegs(:,1) ~= 1;
+            mask2 = ParcellationValues_AllRegs(:,1)' ~= 1;
             selectedChannels = find(mask1 | mask2);
         else
             selectedChannels = find(mask1);
@@ -341,6 +342,7 @@ function conflictModAnalysis(patient)
     
         conflictModChan(ch) = isConflictMod;
         conflictModChans = find(conflictModChan==1);
+        conflictModChans = conflictModChans(ismember(conflictModChans, selectedChannels));
 
     end
         
