@@ -23,7 +23,7 @@
 %% 1) Preprocess
 
 tic
-files = {'BW42'}; 
+files = {'BW42', 'MG51b'}; 
 
 for i = 1:length(files)
     try
@@ -38,15 +38,14 @@ toc
 
 %% 2) Conflict Mod Analysis
 
-patients = {'BW42'};  % BW42, MG51b, sub16
-
+files = {'BW42', 'MG51b'}; 
 tic
-for i = 1:length(patients)
+for i = 1:length(files)
     try
-        fprintf('\nRunning conflictModAnalysis for patient: %s\n', patients{i});
-        conflictModAnalysis(patients{i});
+        fprintf('\nRunning conflictModAnalysis for patient: %s\n', files{i});
+        conflictModAnalysis(files{i});
     catch ME
-        fprintf('Error processing patient %s: %s\n', patients{i}, ME.message);
+        fprintf('Error processing patient %s: %s\n', files{i}, ME.message);
         continue;
     end
 
@@ -56,15 +55,26 @@ toc
 %% functions
 
 function preProcess(patient)
-    load(fullfile('patientData', patient));
+    load(fullfile('patientData', 'oldFiles', patient));
     outputName = patient;
+    sr = 512;
 
     %%%%%%%%%%%%%%%%% Filtering %%%%%%%%%%%%%%%%%
 
     % got rid of preprocessing since already built in
 
     ft_data3_filt = ft_data3_filt_rs;
-       
+
+    % cfg = [];
+    % cfg.bsfilter = 'yes';                    % bandstop filter (notch)
+    % cfg.bsfreq = [55 65; 115 125; 175 185];  % 60, 120, 180 Hz
+    % cfg.bsfiltord = 4;
+    % cfg.hpfilter = 'yes';                    % high pass filter
+    % cfg.hpfreq = 0.5;
+    % cfg.hpfiltord = 5;
+    % 
+    % ft_data3_filt = ft_preprocessing(cfg,ft_data3);
+
     nTrials = numel(ft_data3_filt.trial);
     nChannels = numel(ft_data3_filt.label);
 
@@ -117,13 +127,13 @@ function preProcess(patient)
     if exist('ch_ictal', 'var')
         mask1 = ~ismember(selectedChannels, ch_ictal);
         if exist('ParcellationValues_AllRegs', 'var')
-            mask2 = ParcellationValues_AllRegs(:,1)' ~= 1;
+            mask2 = isnan(ParcellationValues_AllRegs(:,8))';
             selectedChannels = find(mask1 | mask2);
         else
             selectedChannels = find(mask1);
         end
     end
-    [PowerFeatures, PowerData, PowerTimeData] = extractPowerFeatures3_1(ft_data_clean.trial, timeData, responseTimes);
+    [PowerFeatures, PowerData, PowerTimeData] = extractPowerFeatures3_1(ft_data_clean.trial, timeData, responseTimes,sr);
 
     conBandPowerFeatures = PowerFeatures(Trials_C_clean);
     inBandPowerFeatures  = PowerFeatures(Trials_I_clean);
@@ -361,7 +371,7 @@ function conflictModAnalysis(patient)
     save(fullfile(outputFolder, 'inPowerFeatures.mat'), 'inPowerFeatures');
 end
 
-function [band_power_mean_max, normalized_band_power, power_time_data] = extractPowerFeatures3_1(data, timeData, responseTimes)
+function [band_power_mean_max, normalized_band_power, power_time_data] = extractPowerFeatures3_1(data, timeData, responseTimes,sr)
     
 % no more cell array, each trial of time x channels fed into spectrogram.
 % output per cell: [freq x time × Nchannels]
@@ -385,7 +395,7 @@ function [band_power_mean_max, normalized_band_power, power_time_data] = extract
         params = struct();
         % params.fpass = [70 110];  % frequency band you want to analyze
 
-        [~,t,S,~]=computeNormalizedFreqMag(data{tr}',1000,params);
+        [~,t,S,~]=computeNormalizedFreqMag(data{tr}',sr,params);
         
         % ~~~~~~~~~~~~ Save time-frequency power data ~~~~~~~~~~~~~~
         
