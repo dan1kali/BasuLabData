@@ -3,11 +3,6 @@
 % Must have functions added to path: (1) generateCrossValInd.m , (2)
 % permutationTest.m
 
-tic
-
-n = 40;   % At least 34 correct trials
-subjects = {'BW42'}; % BW42, MG51b
-
 % Files:
 % 'BW42', 'MG51b', 'MG79', 'MG86', 
 % 'MG89', 'MG90', 'MG91', 'MG95', 
@@ -15,10 +10,23 @@ subjects = {'BW42'}; % BW42, MG51b
 % 'MG105', 'MG106', 'MG111', 'MG112',
 % 'MG116', 'MG117', 'MG118', 'MG120'
 
-barloc = 2;
-numbars = 5;
-plot(subjects,n,barloc,numbars)
+tic
 
+n = 40; % # correct trials
+subjects = {'BW42', 'MG51b', 'MG79', 'MG86', ...
+            'MG89', 'MG90', 'MG95', ...
+            'MG96', 'MG99', 'MG102', 'MG104', ...
+            'MG105', 'MG106', 'MG111', 'MG112', ...
+            'MG116', 'MG117', 'MG118', 'MG120'};
+
+% barloc = 1; numbars = 5;
+% plot(subjects,n,barloc,numbars)
+
+for i=1:length(subjects)
+    barloc = i;
+    numbars = length(subjects);
+    plot(subjects(i),n,barloc,numbars)
+end
 toc
 
 %% functions
@@ -64,7 +72,6 @@ function [fea_number_con, fea_number_in, m_number_out] = concatenateFeatures(sub
         m_number_out = m_number;
     end
 end
-
 
 function plot(subjects,n,barloc,numbars)
 
@@ -125,13 +132,16 @@ function plot(subjects,n,barloc,numbars)
     
 
     xticks(1:numbars); xlim([0 (numbars+1)]);
-    xticklabels({'Band Power','Z Scores'});xlabel('Features Extraction Location');
+
+    xticklabels({subjects});xlabel('Patient');
+    % xticklabels({'Band Power','Z Scores'});xlabel('Feature Extraction Method');
     
-    ylim([00 100]); line([0 7],[50 50],'color','k','linestyle','--','linewidth',1.5)
+    ylim([00 100]);
     ylabel('Accuracy (%)');
     
     title('Group 2 - 10 fold C-V, 50 sessions','FontSize',16);
     
+    line([0 (numbars+1)],[50 50],'color','k','linestyle','--','linewidth',1.5)
     set(gca,'fontsize', 10,'box','off','FontName','Arial','tickDir','out')
 
 end
