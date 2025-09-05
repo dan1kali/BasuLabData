@@ -23,7 +23,7 @@
 %% 1) Preprocess
 
 tic
-files = {'BW42', 'MG51b'}; 
+files = {'MG111', 'MG117', 'MG118'}; 
 
 for i = 1:length(files)
     try
@@ -38,14 +38,15 @@ toc
 
 %% 2) Conflict Mod Analysis
 
-files = {'BW42', 'MG51b'}; 
 tic
+files = {'BW42', 'MG51b'}; 
+
 for i = 1:length(files)
     try
         fprintf('\nRunning conflictModAnalysis for patient: %s\n', files{i});
         conflictModAnalysis(files{i});
     catch ME
-        fprintf('Error processing patient %s: %s\n', files{i}, ME.message);
+        fprintf('**** ERROR processing patient %s: %s *****\n', files{i}, ME.message);
         continue;
     end
 
@@ -55,7 +56,7 @@ toc
 %% functions
 
 function preProcess(patient)
-    load(fullfile('patientData', 'oldFiles', patient));
+    load(fullfile('patientData', patient));
     outputName = patient;
     sr = 512;
 
@@ -123,14 +124,14 @@ function preProcess(patient)
     %%%%%%%%%%%%%%%%% Feature Extraction %%%%%%%%%%%%%%%%%
     
     timeData = ft_data_clean.time;
-    selectedChannels = ft_data3_filt.label;
+    selectedChans = ft_data3_filt.label;
     if exist('ch_ictal', 'var')
-        mask1 = ~ismember(selectedChannels, ch_ictal);
+        mask1 = ~ismember(selectedChans, ch_ictal);
         if exist('ParcellationValues_AllRegs', 'var')
             mask2 = isnan(ParcellationValues_AllRegs(:,8))';
-            selectedChannels = find(mask1 | mask2);
+            selectedChans = find(mask1 | mask2);
         else
-            selectedChannels = find(mask1);
+            selectedChans = find(mask1);
         end
     end
     [PowerFeatures, PowerData, PowerTimeData] = extractPowerFeatures3_1(ft_data_clean.trial, timeData, responseTimes,sr);
@@ -143,11 +144,11 @@ function preProcess(patient)
         mkdir(outputFolder);
     end
 
-    save(fullfile(outputFolder, 'powerData.mat'), 'PowerData');
+    save(fullfile(outputFolder, 'powerData.mat'), 'PowerData','-v7.3');
     save(fullfile(outputFolder, 'powerTimeData.mat'), 'PowerTimeData');
     save(fullfile(outputFolder, 'conBandPowerFeatures.mat'), 'conBandPowerFeatures');
     save(fullfile(outputFolder, 'inBandPowerFeatures.mat'), 'inBandPowerFeatures');
-    save(fullfile(outputFolder, 'selectedChan.mat'), 'selectedChannels');
+    save(fullfile(outputFolder, 'selectedChans.mat'), 'selectedChans');
     save(fullfile(outputFolder, 'responseTimes.mat'), 'responseTimes');
     save(fullfile(outputFolder, 'trialsC.mat'), 'Trials_C_clean');
     save(fullfile(outputFolder, 'trialsI.mat'), 'Trials_I_clean');
@@ -164,7 +165,7 @@ function conflictModAnalysis(patient)
     outputName = patient;
     
     filesToLoad = {'powerData.mat', 'powerTimeData.mat', ...
-        'selectedChan.mat','responseTimes.mat', 'trialsC.mat', 'trialsI.mat'};
+        'selectedChans.mat','responseTimes.mat', 'trialsC.mat', 'trialsI.mat'};
     
     for i = 1:length(filesToLoad)
         load(fullfile(inputPath, filesToLoad{i}));
@@ -352,7 +353,7 @@ function conflictModAnalysis(patient)
     
         conflictModChan(ch) = isConflictMod;
         conflictModChans = find(conflictModChan==1);
-        conflictModChans = conflictModChans(ismember(conflictModChans, selectedChannels));
+        conflictModChans = conflictModChans(ismember(conflictModChans, selectedChans));
 
     end
         

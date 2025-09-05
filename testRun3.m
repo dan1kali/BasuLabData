@@ -6,7 +6,7 @@
 tic
 
 n = 40;   % At least 34 correct trials
-subjects = {'BW42'}; % BW42, MG51b, sub16
+subjects = {'BW42'}; % BW42, MG51b
 
 % Files:
 % 'BW42', 'MG51b', 'MG79', 'MG86', 
@@ -87,7 +87,7 @@ function [fea_number_con, fea_number_in, m_number_out] = concatenateFeatures(sub
     
     inputPath = fullfile('outputData', subject);
     
-    filesToLoad = {'selectedChan.mat','conflictModChans.mat', ...
+    filesToLoad = {'selectedChans.mat','conflictModChans.mat', ...
         'conPowerFeatures.mat','inPowerFeatures.mat', ...
         'conBandPowerFeatures.mat', 'inBandPowerFeatures.mat'};
     
@@ -95,15 +95,14 @@ function [fea_number_con, fea_number_in, m_number_out] = concatenateFeatures(sub
         load(fullfile(inputPath, filesToLoad{i}));
     end
 
+    sel_chan_number = selectedChans;
+    conPower = conPowerFeatures;
+    inPower = inPowerFeatures;
+
     fea_number_con = [];
     fea_number_in = [];
 
-    sel_chan_number = selectedChannels;
-
     if ~isempty(sel_chan_number)
-        conPower = conPowerFeatures;
-        inPower = inPowerFeatures;
-
         for i = 1:length(sel_chan_number)
             ch = sel_chan_number(i);
 
