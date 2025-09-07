@@ -1,37 +1,56 @@
 
 % Assume your data is all in a subdirectory called "patientData"
-% Must have functions added to path: (1) generateCrossValInd.m , (2)
-% permutationTest.m
+% Must have functions added to path: generateCrossValInd.m , permutationTest.m
 
 % Files:
-% 'BW42', 'MG51b', 'MG79', 'MG86', 
-% 'MG89', 'MG90', 'MG91', 'MG95', 
-% 'MG96', 'MG99', 'MG102', 'MG104', 
-% 'MG105', 'MG106', 'MG111', 'MG112',
+% 'BW42', 'MG51b', 'MG79', 'MG86', ...
+% 'MG89', 'MG90', 'MG91', 'MG95', ...
+% 'MG96', 'MG99', 'MG102', 'MG104', ...
+% 'MG105', 'MG106', 'MG111', 'MG112',...
 % 'MG116', 'MG117', 'MG118', 'MG120'
 
 tic
 
 n = 40; % # correct trials
 subjects = {'BW42', 'MG51b', 'MG79', 'MG86', ...
-            'MG89', 'MG90', 'MG95', ...
-            'MG96', 'MG99', 'MG102', 'MG104', ...
-            'MG105', 'MG106', 'MG111', 'MG112', ...
-            'MG116', 'MG117', 'MG118', 'MG120'};
+'MG89', 'MG90', 'MG95', ...
+'MG96', 'MG99', 'MG102', 'MG104', ...
+'MG105', 'MG106', 'MG111', 'MG112',...
+'MG116', 'MG117', 'MG118', 'MG120'};
+
+config = {'selChans', 'confChans'};
 
 % barloc = 1; numbars = 5;
 % plot(subjects,n,barloc,numbars)
 
-for i=1:length(subjects)
-    barloc = i;
-    numbars = length(subjects);
-    plot(subjects(i),n,barloc,numbars)
+nBars = length(subjects);
+nGroups = length(config);
+
+groupedBars = zeros(nBars,nGroups);
+groupedErr = zeros(nBars,nGroups);
+
+for igroup = 1:nGroups % change this as needed
+    for ibar=1:nBars
+         
+        [y, err] = SVM(subjects(ibar),n,config(igroup));
+
+        groupedBars(ibar,igroup) = y;
+        groupedErr(ibar,igroup) = err;
+
+    end
 end
-toc
+
+xlabels = subjects;
+% grouplabels = config;
+
+barplot(groupedBars, groupedErr, xlabels)
+
+line([0 (nBars+1)],[50 50],'color','k','linestyle','--','linewidth',1)
+legend(config)
 
 %% functions
 
-function [fea_number_con, fea_number_in, m_number_out] = concatenateFeatures(subject, m_number, n)
+function [fea_number_con, fea_number_in, m_number_out] = concatenateFeatures(subject, m_number, n, config)
     
     inputPath = fullfile('outputData', subject);
     
@@ -43,7 +62,14 @@ function [fea_number_con, fea_number_in, m_number_out] = concatenateFeatures(sub
         load(fullfile(inputPath, filesToLoad{i}));
     end
 
-    sel_chan_number = selectedChans;
+     switch config{1}
+        case 'confChans'
+            sel_chan_number = conflictModChans;
+        case 'selChans'
+            sel_chan_number = selectedChans;
+    end
+
+    % sel_chan_number = selectedChans;
     conPower = conPowerFeatures;
     inPower = inPowerFeatures;
 
@@ -73,7 +99,7 @@ function [fea_number_con, fea_number_in, m_number_out] = concatenateFeatures(sub
     end
 end
 
-function plot(subjects,n,barloc,numbars)
+function [y, err] = SVM(subjects,n,config)
 
     for i_randsamp = 1:50
     m_number = 1;
@@ -81,7 +107,7 @@ function plot(subjects,n,barloc,numbars)
     fea_number_in = [];
     
         for i_sub = 1:length(subjects)
-            [fea_con_tmp, fea_in_tmp, m_number] = concatenateFeatures(subjects{i_sub}, m_number, n);
+            [fea_con_tmp, fea_in_tmp, m_number] = concatenateFeatures(subjects{i_sub}, m_number, n,config);
             fea_number_con = [fea_number_con, fea_con_tmp]; % Concatenate horizontally
             fea_number_in = [fea_number_in, fea_in_tmp];
         end
@@ -113,35 +139,53 @@ function plot(subjects,n,barloc,numbars)
         end
         
     end 
-    
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Plot %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    
+
     y = [mean(correct_number(:))];
     err = std(correct_number(:))/sqrt(numel(correct_number)); 
     
-    x = barloc;
+    % clear fea_con_tmp,fea_in_tmp,fea_number_con,fea_number_in
+end
+
+function barplot(y, err, xlabels)
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Plot %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    % x = barloc;
+    % bar(x,y,'FaceColor',[0.511 0.515 1],'BarWidth', 0.4);
     
-    bar(x,y,'FaceColor',[0.511 0.515 1],'BarWidth', 0.4);
-    
+    b = bar(y, 'BarWidth', 1);
+    [nBars, nGroups] = size(y);
+
     hold on;
-    er = errorbar(x,y,err,err); er.Color = [0 0 0]; er.LineStyle = 'none'; er.CapSize = 5;
-    for i = 1:length(x)
-        text(x(i), y(i) + err(i) + 1, sprintf('%.1f', y(i)),'HorizontalAlignment', ...
-            'center','VerticalAlignment', 'bottom','FontSize', 10);
+    % Get x positions for each group
+    x = nan(size(y));
+    for i = 1:nGroups
+        x(:,i) = b(i).XEndPoints;
+        b(i).Labels = b(i).YData;
     end
-    
 
-    xticks(1:numbars); xlim([0 (numbars+1)]);
+    er = errorbar(x,y,err); 
 
-    xticklabels({subjects});xlabel('Patient');
+     for ier = 1:numel(er)
+        er(ier).LineStyle = 'none'; er(ier).CapSize = 5; er(ier).Color = [0 0 0];
+
+    end
+    % xticks(1:numbars); xlim([0 (numbars+1)]);
     % xticklabels({'Band Power','Z Scores'});xlabel('Feature Extraction Method');
-    
+
+    xticks(1:nBars); xtickangle(45); xticklabels(xlabels);xlabel('Patient');
+
+    % if ~isempty(grouplabels)
+    %     legend(b,grouplabels);
+    % end
+        
     ylim([00 100]);
     ylabel('Accuracy (%)');
     
     title('Group 2 - 10 fold C-V, 50 sessions','FontSize',16);
     
-    line([0 (numbars+1)],[50 50],'color','k','linestyle','--','linewidth',1.5)
+    % line([0 20],[50 50],'color','k','linestyle','--','linewidth',1)
     set(gca,'fontsize', 10,'box','off','FontName','Arial','tickDir','out')
 
 end
+
