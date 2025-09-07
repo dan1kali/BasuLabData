@@ -12,10 +12,6 @@
 
 # Misc/old files
 
-**extractChronuxFeatures.m** - original with band power not z score
-
-**extractChronuxFeatures2.m** - with z score
-
 **extractChronuxFeatures3.m** - changing the way the band power is cut
 - Add preprocessing support for their data
 
