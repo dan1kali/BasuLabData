@@ -7,7 +7,7 @@
 ### 1) Place all patient data in folder called "patientData"
 
 ### 2) Use extractChronuxFeatures4.m
-**all procedures to generate features**
+**generate power data, features, and all other nexessary files**
 - Use preprocessing function to generate powerdata + other files (non z-scored features, time, C/I trials, etc)
 - Use conflictModAnalysis function to generate conflict modulated channels + z scored power data
 - All files will save in auto-generated outputData folders for each patient
