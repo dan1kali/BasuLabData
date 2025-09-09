@@ -1,3 +1,7 @@
+# Requirements
+- MATLAB 2024b or later (for plotting)
+- Chronux functions, generateCrossValInd.m, permutationTest.m added to path
+
 # Files of interest
 
 ### extractChronuxFeatures4.m
@@ -7,16 +11,4 @@
 
 ### testRun3.m
 **apply decoding and plot**
-- grouped bar graph for multiple patients + conditions, puls from patient save folders
-
-
-# Misc/old files
-
-**extractChronuxFeatures3.m** - changing the way the band power is cut
-- Add preprocessing support for their data
-
-**extractChronuxFeatures3_1.m** - small updates
-- Extract power for all channels at once + other changes
-
-**testRun2.m** - plot one bar ata  time
-- need to change conditions + hold on to get multi bar graphs
+- grouped bar graph for multiple patients + conditions from patient save folders
