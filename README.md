@@ -2,13 +2,19 @@
 - MATLAB 2024b or later (for plotting)
 - Chronux functions, generateCrossValInd.m, permutationTest.m added to path
 
-# Files of interest
+# Usage
 
-### extractChronuxFeatures4.m
+### 1) Place all patient data in folder called "patientData"
+
+### 2) Use extractChronuxFeatures4.m
 **all procedures to generate features**
-- updates for new data + parcellations + preprocessing
-- Updated file format to save in folders
+- Use preprocessing function to generate powerdata + other files (non z-scored features, time, C/I trials, etc)
+- Use conflictModAnalysis function to generate conflict modulated channels + z scored power data
+- All files will save in auto-generated outputData folders for each patient
 
-### testRun3.m
+### 3) testRun3.m
 **apply decoding and plot**
-- grouped bar graph for multiple patients + conditions from patient save folders
+- update patient list and group conditions
+- use nBar = 1 to create one bar grouping for aggregated multi-patient data seperated by condition
+- or nBar = length(patients) for bar groupings seperated by patient AND condition
+- Will load from data saved in patient save folders using previous file
