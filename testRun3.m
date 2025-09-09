@@ -18,36 +18,32 @@ subjects = {'BW42', 'MG51b', 'MG79', 'MG86', ...
 'MG105', 'MG106', 'MG111', 'MG112',...
 'MG116', 'MG117', 'MG118', 'MG120'};
 
-config = {'selChans', 'confChans'};
+config = {'selChans - z-scored power','confChans - z-scored power', ...
+    'selChans - non z-scored power','confChans - non z-scored power'};
 
-% barloc = 1; numbars = 5;
-% plot(subjects,n,barloc,numbars)
-
-nBars = length(subjects);
+% nBars = length(subjects);
+nBars = 1;
 nGroups = length(config);
 
 groupedBars = zeros(nBars,nGroups);
 groupedErr = zeros(nBars,nGroups);
 
-for igroup = 1:nGroups % change this as needed
-    for ibar=1:nBars
-         
-        [y, err] = SVM(subjects(ibar),n,config(igroup));
-
-        groupedBars(ibar,igroup) = y;
-        groupedErr(ibar,igroup) = err;
-
+for igroup = 1:nGroups
+    if nBars ==1
+        [y, err] = SVM(subjects(:),n,config(igroup));
+        groupedBars(:,igroup) = y;
+        groupedErr(:,igroup) = err;
+    else
+        for ibar=1:nBars
+            [y, err] = SVM(subjects(ibar),n,config(igroup));
+            groupedBars(ibar,igroup) = y;
+            groupedErr(ibar,igroup) = err;
+        end
     end
 end
 
-xlabels = subjects;
-% grouplabels = config;
-
-barplot(groupedBars, groupedErr, xlabels)
-
-line([0 (nBars+1)],[50 50],'color','k','linestyle','--','linewidth',1)
-legend(config)
-
+barplot(groupedBars, groupedErr, subjects, config)
+toc
 %% functions
 
 function [fea_number_con, fea_number_in, m_number_out] = concatenateFeatures(subject, m_number, n, config)
@@ -63,15 +59,29 @@ function [fea_number_con, fea_number_in, m_number_out] = concatenateFeatures(sub
     end
 
      switch config{1}
-        case 'confChans'
+         case 'confChans - z-scored power'
             sel_chan_number = conflictModChans;
-        case 'selChans'
+            conPower = conPowerFeatures;
+            inPower = inPowerFeatures;
+         case 'selChans - z-scored power'
             sel_chan_number = selectedChans;
+            conPower = conPowerFeatures;
+            inPower = inPowerFeatures;
+         case 'confChans - non z-scored power'
+            sel_chan_number = conflictModChans;
+            conPower = conBandPowerFeatures;
+            inPower = inBandPowerFeatures;
+         case 'selChans - non z-scored power'
+            sel_chan_number = selectedChans;
+            conPower = conBandPowerFeatures;
+            inPower = inBandPowerFeatures;
+         otherwise
+            error('Unknown config: %s\n', config{1});
     end
 
     % sel_chan_number = selectedChans;
-    conPower = conPowerFeatures;
-    inPower = inPowerFeatures;
+    % conPower = conBandPowerFeatures;
+    % inPower = inBandPowerFeatures;
 
     fea_number_con = [];
     fea_number_in = [];
@@ -142,50 +152,68 @@ function [y, err] = SVM(subjects,n,config)
 
     y = [mean(correct_number(:))];
     err = std(correct_number(:))/sqrt(numel(correct_number)); 
-    
-    % clear fea_con_tmp,fea_in_tmp,fea_number_con,fea_number_in
 end
 
-function barplot(y, err, xlabels)
+function barplot(y, err, xlabels,config)
 
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Plot %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-    % x = barloc;
-    % bar(x,y,'FaceColor',[0.511 0.515 1],'BarWidth', 0.4);
-    
-    b = bar(y, 'BarWidth', 1);
     [nBars, nGroups] = size(y);
 
-    hold on;
-    % Get x positions for each group
-    x = nan(size(y));
-    for i = 1:nGroups
-        x(:,i) = b(i).XEndPoints;
-        b(i).Labels = b(i).YData;
+    if size(y,1)==1 % if b only has one grouping
+        for i = 1:nGroups
+            b(i) = bar(i, y(i), 'BarWidth', 1);
+            hold on
+        end
+        x = 1:nGroups;  % positions match bar indices
+        for i = 1:nGroups
+            b(i).Labels = b(i).YData;
+        end
+        line([0 (nGroups+1)],[50 50],'color','k','linestyle','--','linewidth',1);
+        xticks(1:nGroups);xlabel('Feature Extraction Method');
+        ylim([00 125]); 
+    else
+        b = bar(y, 'BarWidth', 1);
+        xticks(1:nBars); xtickangle(45); xticklabels(xlabels);xlabel('Patient');
+        x = nan(nBars, nGroups);
+        for i = 1:nGroups
+            x(:,i) = b(i).XEndPoints;
+          % b(i).Labels = b(i).YData;
+        end
+        line([0 (nBars+1)],[50 50],'color','k','linestyle','--','linewidth',1);
+        ylim([00 100]);
     end
+
+
+    % Bar Shading
+    baseColors = [0.1   0.4   0.7; 0.8   0.3   0.25]; % set shades, [blue;red]
+    targetColors = [0.5 0.7 1;1   0.5 0.3   ];
+    nShades = 2;
+    % (:,:,1) for blues, (:,:,2) for reds - (shades x RGB x groups)
+    shades = zeros(nShades, 3, size(baseColors,1));
+    for g = 1:size(baseColors,1)
+        for c = 1:3  % R, G, B channels
+            shades(:, c, g) = linspace(baseColors(g, c), targetColors(g, c), nShades);
+        end
+    end
+
+    for i = 1:4
+        if i <= 2
+            b(i).FaceColor = shades(i,:,1); % first group blue shades
+        else
+            b(i).FaceColor = shades(i-2,:,2); % second group red shades
+        end
+    end
+    
+    hold on;
 
     er = errorbar(x,y,err); 
 
-     for ier = 1:numel(er)
+    for ier = 1:numel(er)
         er(ier).LineStyle = 'none'; er(ier).CapSize = 5; er(ier).Color = [0 0 0];
-
     end
-    % xticks(1:numbars); xlim([0 (numbars+1)]);
-    % xticklabels({'Band Power','Z Scores'});xlabel('Feature Extraction Method');
 
-    xticks(1:nBars); xtickangle(45); xticklabels(xlabels);xlabel('Patient');
-
-    % if ~isempty(grouplabels)
-    %     legend(b,grouplabels);
-    % end
-        
-    ylim([00 100]);
     ylabel('Accuracy (%)');
-    
-    title('Group 2 - 10 fold C-V, 50 sessions','FontSize',16);
-    
-    % line([0 20],[50 50],'color','k','linestyle','--','linewidth',1)
-    set(gca,'fontsize', 10,'box','off','FontName','Arial','tickDir','out')
-
+    title('Group 2 - 10 fold C-V, 50 sessions','FontSize',16);   
+    set(gca,'box','off','tickDir','out')
+    legend(b,config,'Location', 'northwest')
 end
 
