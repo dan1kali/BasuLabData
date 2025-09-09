@@ -9,14 +9,12 @@
 % 'MG105', 'MG106', 'MG111', 'MG112',...
 % 'MG116', 'MG117', 'MG118', 'MG120'
 
+% 'selChans - z-scored power','confChans - z-scored power', ...
+%     'selChans - non z-scored power','confChans - non z-scored power'
 tic
 
 n = 40; % # correct trials
-subjects = {'BW42', 'MG51b', 'MG79', 'MG86', ...
-'MG89', 'MG90', 'MG95', ...
-'MG96', 'MG99', 'MG102', 'MG104', ...
-'MG105', 'MG106', 'MG111', 'MG112',...
-'MG116', 'MG117', 'MG118', 'MG120'};
+subjects = {'BW42', 'MG51b', 'MG79', 'MG86'};
 
 config = {'selChans - z-scored power','confChans - z-scored power', ...
     'selChans - non z-scored power','confChans - non z-scored power'};
@@ -30,12 +28,12 @@ groupedErr = zeros(nBars,nGroups);
 
 for igroup = 1:nGroups
     if nBars ==1
-        [y, err] = SVM(subjects(:),n,config(igroup));
+        [y, err,mean_weights,max_weights,sel_chan_number]  = SVM(subjects(:),n,config(igroup));
         groupedBars(:,igroup) = y;
         groupedErr(:,igroup) = err;
     else
         for ibar=1:nBars
-            [y, err] = SVM(subjects(ibar),n,config(igroup));
+            [y, err,mean_weights,max_weights,sel_chan_number]  = SVM(subjects(ibar),n,config(igroup));
             groupedBars(ibar,igroup) = y;
             groupedErr(ibar,igroup) = err;
         end
@@ -43,10 +41,11 @@ for igroup = 1:nGroups
 end
 
 barplot(groupedBars, groupedErr, subjects, config)
+% weightsplot(mean_weights,max_weights,sel_chan_number) % only most recent sub and condition
 toc
 %% functions
 
-function [fea_number_con, fea_number_in, m_number_out] = concatenateFeatures(subject, m_number, n, config)
+function [fea_number_con, fea_number_in, m_number_out,sel_chan_number] = concatenateFeatures(subject, m_number, n, config)
     
     inputPath = fullfile('outputData', subject);
     
@@ -109,7 +108,7 @@ function [fea_number_con, fea_number_in, m_number_out] = concatenateFeatures(sub
     end
 end
 
-function [y, err] = SVM(subjects,n,config)
+function [y, err,mean_weights,max_weights,sel_chan_number] = SVM(subjects,n,config)
 
     for i_randsamp = 1:50
     m_number = 1;
@@ -117,7 +116,7 @@ function [y, err] = SVM(subjects,n,config)
     fea_number_in = [];
     
         for i_sub = 1:length(subjects)
-            [fea_con_tmp, fea_in_tmp, m_number] = concatenateFeatures(subjects{i_sub}, m_number, n,config);
+            [fea_con_tmp, fea_in_tmp, m_number,sel_chan_number] = concatenateFeatures(subjects{i_sub}, m_number, n,config);
             fea_number_con = [fea_number_con, fea_con_tmp]; % Concatenate horizontally
             fea_number_in = [fea_number_in, fea_in_tmp];
         end
@@ -134,6 +133,21 @@ function [y, err] = SVM(subjects,n,config)
                 Y_train = [zeros(n_sample-n_test,1);ones(n_sample-n_test,1)];
                 Mdl = fitcsvm(real(X_train),Y_train,'Standardize',true,'KernelFunction','linear');
     
+                beta = Mdl.Beta;
+                abs_beta = abs(beta);
+
+                nChannels = floor(length(abs_beta));
+                means_idx = 1:2:nChannels;
+                max_idx = 2:2:nChannels;
+
+                if i_randsamp == 1 && i == 1
+                    mean_abs_beta = zeros(length(means_idx), 10, 50);
+                    max_abs_beta  = zeros(length(max_idx), 10, 50);
+                end
+
+                mean_abs_beta (:,i,i_randsamp) = abs_beta(means_idx);
+                max_abs_beta (:,i,i_randsamp) = abs_beta(max_idx);
+
                 X_test = [fea_number_con(test_ind(i,:),:);fea_number_in(test_ind(i,:),:)];
                 labels = predict(Mdl,real(X_test)); % made real
                 Y_test = [zeros(n_test,1);ones(n_test,1)]; % ground truth
@@ -152,6 +166,8 @@ function [y, err] = SVM(subjects,n,config)
 
     y = [mean(correct_number(:))];
     err = std(correct_number(:))/sqrt(numel(correct_number)); 
+    mean_weights = mean_abs_beta;
+    max_weights = max_abs_beta;
 end
 
 function barplot(y, err, xlabels,config)
@@ -195,7 +211,7 @@ function barplot(y, err, xlabels,config)
         end
     end
 
-    for i = 1:4
+    for i = 1:nGroups
         if i <= 2
             b(i).FaceColor = shades(i,:,1); % first group blue shades
         else
@@ -217,3 +233,41 @@ function barplot(y, err, xlabels,config)
     legend(b,config,'Location', 'northwest')
 end
 
+function weightsplot(mean_weights,max_weights,sel_chan_number)
+
+    mean_abs_beta_flat = reshape(mean_weights, size(mean_weights,1), []);  % now size = [60 x 500]
+    max_abs_beta_flat = reshape(max_weights, size(max_weights,1), []);
+    
+    beta_mean = squeeze(mean(mean_weights,[2 3]));
+    beta_max = squeeze(mean(max_weights,[2 3]));
+
+    beta_mean_err = std(mean_abs_beta_flat,0,2)/sqrt(size(mean_abs_beta_flat, 2)); 
+    beta_max_err = std(max_abs_beta_flat,0,2)/sqrt(size(max_abs_beta_flat, 2)); 
+
+    x = 1:length(beta_mean);  % 1 to 60
+    
+    figure;
+    subplot(1, 2, 1);
+    % ylim([0 1])
+    bar(x, beta_mean);
+    hold on;
+    errorbar(x, beta_mean, beta_mean_err, 'k.');
+    xticks(x); xticklabels(sel_chan_number);
+    set(gca, 'FontSize', 6);
+    xlabel('Channel Number', 'FontSize', 12);
+    ylabel('Absolute Beta Weight', 'FontSize', 12);
+    title('Feature Importance - Mean', 'FontSize', 14);
+    grid on;
+    
+    subplot(1, 2, 2);
+    % ylim([0 1])
+    bar(x, beta_max);
+    hold on;
+    errorbar(x, beta_max, beta_max_err, 'k.');
+    xticks(x); xticklabels(sel_chan_number);
+    set(gca, 'FontSize', 6);
+    xlabel('Channel Number', 'FontSize', 12);
+    title('Feature Importance - Max', 'FontSize', 14);
+    grid on;
+
+end
