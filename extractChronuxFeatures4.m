@@ -4,10 +4,10 @@
 % Must have following added to path: chronux_2_12
 
 % Files:
-% 'BW42', 'MG51b', 'MG79', 'MG86', 
-% 'MG89', 'MG90', 'MG91', 'MG95', 
-% 'MG96', 'MG99', 'MG102', 'MG104', 
-% 'MG105', 'MG106', 'MG111', 'MG112',
+% 'BW42', 'MG51b', 'MG79', 'MG86', ...
+% 'MG89', 'MG90', 'MG91', 'MG95', ...
+% 'MG96', 'MG99', 'MG102', 'MG104', ...
+% 'MG105', 'MG106', 'MG111', 'MG112', ...
 % 'MG116', 'MG117', 'MG118', 'MG120'
 
 % 1) Preprocess for a given patient(s)
@@ -23,9 +23,18 @@
 %% 1) Preprocess
 
 tic
-files = {'MG111', 'MG117', 'MG118'}; 
+files = {'MG111', 'MG117','MG118'};
 
-for i = 1:length(files)
+
+pool = gcp('nocreate');
+if isempty(pool)
+    parpool(4);
+else
+    disp('Pool already running!');
+end
+
+
+parfor i = 1:length(files)
     try
         fprintf('\nProcessing patient %s\n', files{i});
         preProcess(files{i});
@@ -39,9 +48,20 @@ toc
 %% 2) Conflict Mod Analysis
 
 tic
-files = {'BW42', 'MG51b'}; 
+files = {'BW42', 'MG51b', 'MG79', 'MG86', ...
+'MG89', 'MG90', 'MG95', ...
+'MG96', 'MG99', 'MG102', 'MG104', ...
+'MG105', 'MG106', 'MG111', 'MG112', ...
+'MG116', 'MG117', 'MG118', 'MG120'};
 
-for i = 1:length(files)
+pool = gcp('nocreate');
+if isempty(pool)
+    parpool(4);
+else
+    disp('Pool already running!');
+end
+
+parfor i = 1:length(files)
     try
         fprintf('\nRunning conflictModAnalysis for patient: %s\n', files{i});
         conflictModAnalysis(files{i});
@@ -49,7 +69,6 @@ for i = 1:length(files)
         fprintf('**** ERROR processing patient %s: %s *****\n', files{i}, ME.message);
         continue;
     end
-
 end
 toc
 
@@ -199,18 +218,25 @@ function conflictModAnalysis(patient)
 
             % ~~~~~~~~~~~~~~~~ Extract Baseline Power ~~~~~~~~~~~~~~~~~~~~
             
-            % Cut time window to baseline: [-0.5s, 0]
-            tBaselineWindow = t >= -0.5 & t <= 0; 
-            % tBaselineWindow = t >= 1 & t <= 1.5; 
-            S_baseline = PowerData{tr}(:,tBaselineWindow,ch);
+            % baseline extract: [-2s, +1s]
+            % baseline cut: [-0.5s, 0]
+
+            % t >= -0.5 & t <= 0;  % toggle to change window that is extracted
+            tBaseline_extract = t >= -2 & t <= 1;
+            tBaselinenew = t(tBaseline_extract);
+            tBaseline_cut = tBaselinenew >= -0.5 & tBaselinenew <= 0;
+            
+            S_baseline = PowerData{tr}(:,tBaseline_extract,ch);
+
             m = mean(S_baseline,2); % mean across time (1 value per frequency)
             expanded_m = repmat(m,1,size(S_baseline,2));
 
             % Power during baseline over time, per channel/trial
             S_baseline_norm = mean(S_baseline./expanded_m,1); 
+            S_baseline_cut = S_baseline_norm(tBaseline_cut); 
 
-            mu = mean(S_baseline_norm(:));
-            sigma = std(S_baseline_norm(:));
+            mu = mean(S_baseline_cut(:));
+            sigma = std(S_baseline_cut(:));
     
             % ~~~~~~~~~~~~~~~~ Whole Signal Power ~~~~~~~~~~~~~~~~~~~~
 
@@ -261,7 +287,7 @@ function conflictModAnalysis(patient)
 
     for tr=1:nTrials
 
-        band_power_mean_max{tr} = zeros(nChannels, 2);
+        band_power_mean_max{tr} = zeros(nChannels, 3);
         
         % for ch=1:nChannels
             
@@ -269,12 +295,13 @@ function conflictModAnalysis(patient)
             
             % Cut time window: only look at stimulus onset to behavioral response
             tWindow = t >= 0 & t <= responseTimes(tr); 
-
+            tWindownew = t(tWindow);
             S_epoched = band_power_zscore{tr}(:,tWindow);
 
             % [1st column - mean, 2nd column - max]
             band_power_mean_max{tr}(:,1) = mean(S_epoched, 2);  % mean over time
             band_power_mean_max{tr}(:,2) = max(S_epoched, [],2);   % max over time
+            band_power_mean_max{tr}(:,3) = trapz(tWindownew, S_epoched,2);
 
         % end
     end
@@ -374,7 +401,7 @@ end
 
 function [band_power_mean_max, normalized_band_power, power_time_data] = extractPowerFeatures3_1(data, timeData, responseTimes,sr)
     
-% no more cell array, each trial of time x channels fed into spectrogram.
+% each trial of time x channels fed into spectrogram.
 % output per cell: [freq x time × Nchannels]
 
     addpath(genpath('functions'))
@@ -388,15 +415,13 @@ function [band_power_mean_max, normalized_band_power, power_time_data] = extract
 
     for tr=1:nTrials
         band_power_mean_max{tr} = zeros(nChannels, 2);
-        % normalized_band_power{tr} = cell(1, nChannels);
-        % normalized_band_power{tr} = zeros(nChannels, 2);
             
         %%%%%%%%%%%%%%%%% Band Power Calculation %%%%%%%%%%%%%%%%%
 
         params = struct();
         % params.fpass = [70 110];  % frequency band you want to analyze
 
-        [~,t,S,~]=computeNormalizedFreqMag(data{tr}',sr,params);
+        [y,t,S,~]=computeNormalizedFreqMag(data{tr}',sr,params);
         
         % ~~~~~~~~~~~~ Save time-frequency power data ~~~~~~~~~~~~~~
         
@@ -406,21 +431,29 @@ function [band_power_mean_max, normalized_band_power, power_time_data] = extract
         t = t + timeData{1}(1);  % shift t
         power_time_data {tr} = t;
 
-        % ~~~~~~~~~~~~~~~~~~~~~~ Save features ~~~~~~~~~~~~~~~~~~~~~~
+        % ~~~~~~~~~~~~~~~~~~~ Save non z-scored features ~~~~~~~~~~~~~~~~~~~
         
-        % Cut time window: only look at stimulus onset to behavioral response
-        tWindow = t >= 0 & t <= responseTimes(tr); 
-        S_epoched = S(tWindow,:,:);
-        m = mean(S_epoched,1); % mean across time (1 value per frequency)
-        expanded_m = repmat(m,size(S_epoched,1),1,1);
+        %%% (method 1) extract only part of signal 
+        
+        tWindow_cut = t >= 0 & t <= responseTimes(tr); % stim onset to behavioral response
+        S_extract_epoched = S(tWindow_cut,:,:); 
+        m = mean(S_extract_epoched,1); % mean across time (1 value per frequency)
+        expanded_m = repmat(m,size(S_extract_epoched,1),1,1);
 
         % Power over time, per channel/trial
         % [time, freq, chan] --> (time, chan)
-        S_norm_epoched = squeeze(mean(S_epoched./expanded_m,2)); 
+        S_norm_epoched = squeeze(mean(S_extract_epoched./expanded_m,2)); 
+
+
+        %%% (method 2) cut after extracting whole signal
+        S_cut_epoched = y(tWindow_cut,:);
+
 
         % [1st column - mean, 2nd column - max]
-        band_power_mean_max{tr}(:,1,:) = mean(S_norm_epoched,1);  % mean over time
-        band_power_mean_max{tr}(:,2,:) = max(S_norm_epoched,[],1);   % max over time
+        % band_power_mean_max{tr}(:,1,:) = mean(S_norm_epoched,1);  % mean over time
+        % band_power_mean_max{tr}(:,2,:) = max(S_norm_epoched,[],1);   % max over time
+        band_power_mean_max{tr}(:,1,:) = mean(S_cut_epoched,1);  % mean over time
+        band_power_mean_max{tr}(:,2,:) = max(S_cut_epoched,[],1);   % max over time
 
     end
 end
