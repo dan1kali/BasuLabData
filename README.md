@@ -1,5 +1,5 @@
 # Requirements
-- MATLAB 2024b or later (for plotting)
+- MATLAB 2024b or later (for plotting) + Signal Processing Toolbox
 - Chronux functions, generateCrossValInd.m, permutationTest.m added to path
 
 # Usage
