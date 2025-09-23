@@ -18,14 +18,9 @@
 tic
 
 n = 40; % minumum # of trials
-subjects = {'BW42', 'MG51b', 'MG79', 'MG86', ...
-'MG89', 'MG90', 'MG95', ...
-'MG96', 'MG99', 'MG102', 'MG104', ...
-'MG105', 'MG106', 'MG111', 'MG112',...
-'MG116', 'MG117', 'MG118', 'MG120'};
+subjects = {'MG102'};
 
-config = {'selChans - z-scored power','confChans - z-scored power', ...
-    'selChans - z-scored power - res','confChans - z-scored power - res'};
+config = {'selChans - z-scored power'};
 
 nBars = length(subjects);
 % nBars = 1;
@@ -35,6 +30,7 @@ groupedBars = zeros(nBars,nGroups);
 groupedErr = zeros(nBars,nGroups);
 
 for igroup = 1:nGroups
+    % try
     if nBars ==1
         [y, err,mean_weights,max_weights,sel_chan_number]  = SVM(subjects(:),n,config(igroup));
         groupedBars(:,igroup) = y;
@@ -46,10 +42,16 @@ for igroup = 1:nGroups
             groupedErr(ibar,igroup) = err;
         end
     end
+
+    % catch ME
+    % disp(getReport(ME, 'extended'));
+    % end
+
+
 end
 
-barplot(groupedBars, subjects, groupedErr, config)
-% weightsplot(mean_weights,max_weights,sel_chan_number) % only most recent sub and condition
+% barplot(groupedBars, subjects, groupedErr, config)
+weightsplot(mean_weights,max_weights,sel_chan_number,subjects) % only most recent sub and condition
 toc
 
 %% Plot number of channels/min number of Trials
@@ -70,24 +72,25 @@ ylim([0 175]); xlim([0 21]); title('Min Number of Trials per Patient')
 
 function [fea_number_con, fea_number_in, m_number_out,sel_chan_number] = concatenateFeatures(subject, m_number, n, config)
     
-    inputPath = fullfile('outputData', subject);
+    inputPath = fullfile('outputDataWavelet', subject);
     
     filesToLoad = {'selectedChans.mat','conflictModChans.mat', ...
         'conPowerFeatures.mat','inPowerFeatures.mat', ...
         'conBandPowerFeatures.mat', 'inBandPowerFeatures.mat', ...
-        'allPowerFeatures.mat','conResPowerFeatures.mat','inResPowerFeatures.mat'};
+        'conResPowerFeatures.mat','inResPowerFeatures.mat'};
+        % 'allPowerFeatures.mat', ...
+        % 'ROIbyChannel.mat',...
     
     for i = 1:length(filesToLoad)
         load(fullfile(inputPath, filesToLoad{i}));
     end
 
 
-    nTrials = numel(allPowerFeatures); 
-    randomOrder = randperm(nTrials);
-    half = floor(nTrials/2);
-
-    conPowerFeaturesRand = allPowerFeatures(randomOrder(1:half));
-    inPowerFeaturesRand = allPowerFeatures(randomOrder(half+1:end));
+    % nTrials = numel(allPowerFeatures); 
+    % randomOrder = randperm(nTrials);
+    % half = floor(nTrials/2);
+    % conPowerFeaturesRand = allPowerFeatures(randomOrder(1:half));
+    % inPowerFeaturesRand = allPowerFeatures(randomOrder(half+1:end));
 
 
      switch config{1}
@@ -158,6 +161,8 @@ function [fea_number_con, fea_number_in, m_number_out,sel_chan_number] = concate
         end
 
         m_number_out = m_number;
+    else
+        m_number_out = 0;
     end
 end
 
@@ -216,45 +221,55 @@ function [y, err,mean_weights,max_weights,sel_chan_number] = SVM(subjects,n,conf
     
         n_sample = n;
     
-        for i_iter = 1
-            % Number
-            [train_ind, test_ind,n_test] = generateCrossValInd(n_sample); % n_sample = 52;
-            for i = 1:10 % 10-fold 
-                X_train = [fea_number_con(train_ind(i,:),:);fea_number_in(train_ind(i,:),:)]; % made real
-                Y_train = [zeros(n_sample-n_test,1);ones(n_sample-n_test,1)];
-                Mdl = fitcsvm(real(X_train),Y_train,'Standardize',true,'KernelFunction','linear');
-    
-                beta = Mdl.Beta;
-                abs_beta = abs(beta);
 
-                nChannels = floor(length(abs_beta));
-                means_idx = 1:2:nChannels;
-                max_idx = 2:2:nChannels;
 
-                if i_randsamp == 1 && i == 1
-                    mean_abs_beta = zeros(length(means_idx), 10, 50);
-                    max_abs_beta  = zeros(length(max_idx), 10, 50);
-                end
+        if m_number_out ~= 0
 
-                % mean_abs_beta (:,i,i_randsamp) = abs_beta(means_idx);
-                % max_abs_beta (:,i,i_randsamp) = abs_beta(max_idx);
-                mean_abs_beta (:,i,i_randsamp) = beta(means_idx);
-                max_abs_beta (:,i,i_randsamp) = beta(max_idx);
-
-                X_test = [fea_number_con(test_ind(i,:),:);fea_number_in(test_ind(i,:),:)];
-                labels = predict(Mdl,real(X_test)); % made real
-                Y_test = [zeros(n_test,1);ones(n_test,1)]; % ground truth
-                n_correct = 0;
-                for j = 1:length(labels)
-                    if labels(j)==Y_test(j)
-                        n_correct = n_correct+1;
-                    end
-                end
-                correct_number(i_randsamp,i) = n_correct/length(Y_test)*100;
-                clear Mdl
-            end
-        end
+            for i_iter = 1
+                % Number
+                [train_ind, test_ind,n_test] = generateCrossValInd(n_sample); % n_sample = 52;
+                for i = 1:10 % 10-fold 
+                    X_train = [fea_number_con(train_ind(i,:),:);fea_number_in(train_ind(i,:),:)]; % made real
+                    Y_train = [zeros(n_sample-n_test,1);ones(n_sample-n_test,1)];
+                    Mdl = fitcsvm(real(X_train),Y_train,'Standardize',true,'KernelFunction','linear');
         
+                    beta = Mdl.Beta;
+                    abs_beta = abs(beta);
+    
+                    nChannels = floor(length(abs_beta));
+                    means_idx = 1:2:nChannels;
+                    max_idx = 2:2:nChannels;
+    
+                    if i_randsamp == 1 && i == 1
+                        mean_abs_beta = zeros(length(means_idx), 10, 50);
+                        max_abs_beta  = zeros(length(max_idx), 10, 50);
+                    end
+    
+                    % mean_abs_beta (:,i,i_randsamp) = abs_beta(means_idx);
+                    % max_abs_beta (:,i,i_randsamp) = abs_beta(max_idx);
+                    mean_abs_beta (:,i,i_randsamp) = beta(means_idx);
+                    max_abs_beta (:,i,i_randsamp) = beta(max_idx);
+    
+                    X_test = [fea_number_con(test_ind(i,:),:);fea_number_in(test_ind(i,:),:)];
+                    labels = predict(Mdl,real(X_test)); % made real
+                    Y_test = [zeros(n_test,1);ones(n_test,1)]; % ground truth
+                    n_correct = 0;
+                    for j = 1:length(labels)
+                        if labels(j)==Y_test(j)
+                            n_correct = n_correct+1;
+                        end
+                    end
+                    correct_number(i_randsamp,i) = n_correct/length(Y_test)*100;
+                    clear Mdl
+                end
+            end
+        else
+            correct_number = 0;
+            mean_abs_beta = 0;
+            max_abs_beta = 0;
+
+        end
+       
     end 
 
     y = [mean(correct_number(:))];
@@ -333,7 +348,92 @@ function barplot(y, xlabels, err,config)
     end
 end
 
-function weightsplot(mean_weights,max_weights,sel_chan_number)
+function weightsplot(mean_weights,max_weights,sel_chan_number,subject)
+
+    inputPath = fullfile('outputDataWavelet', subject);
+    filesToLoad = {'ROIbyChannel.mat'};
+    for i = 1:length(filesToLoad)
+        filePath = char(fullfile(inputPath, filesToLoad{i}));  % Convert to char
+        load(filePath);
+    end
+
+    mean_abs_beta_flat = reshape(mean_weights, size(mean_weights,1), []);  % now size = [60 x 500]
+    max_abs_beta_flat = reshape(max_weights, size(max_weights,1), []);
+    
+    beta_mean = squeeze(mean(mean_weights,[2 3]));
+    beta_max = squeeze(mean(max_weights,[2 3]));
+
+    beta_mean_err = std(mean_abs_beta_flat,0,2)/sqrt(size(mean_abs_beta_flat, 2)); 
+    beta_max_err = std(max_abs_beta_flat,0,2)/sqrt(size(max_abs_beta_flat, 2)); 
+
+
+    if exist("ROIbyChannel",'var')
+    beta_mean_plot = zeros(numel(ROIbyChannel),1);
+    beta_max_plot = zeros(numel(ROIbyChannel),1);
+    beta_mean_err_plot = zeros(numel(ROIbyChannel),1);
+    beta_max_err_plot = zeros(numel(ROIbyChannel),1);
+
+        for ich = 1:numel(ROIbyChannel)
+            channelsinROI = find(ismember(sel_chan_number, ROIbyChannel{ich}));
+            if isempty(channelsinROI)
+                beta_mean_plot(ich) = 0;
+                beta_max_plot(ich) = 0;
+                beta_mean_err_plot(ich) = 0;
+                beta_max_err_plot(ich) = 0;
+            else
+                beta_mean_plot(ich) = mean(beta_mean(channelsinROI));
+                beta_max_plot(ich) = mean(beta_max(channelsinROI));
+                beta_mean_err_plot(ich) = mean(beta_mean_err(channelsinROI));
+                beta_max_err_plot(ich) = mean(beta_max_err(channelsinROI));
+            end
+        end
+    end
+
+    RegionLabels = {'dlPFC', 'dmPFC', 'OFC', 'vlPFC', 'STG', 'MTG', 'ITG', 'dACC', 'AMY', 'HIP'};
+
+    x = 1:length(beta_mean_plot);  % 1 to 60
+    
+    figure;
+    subplot(1, 2, 1);
+    % ylim([0 1])
+    bar(x, beta_mean_plot);
+    hold on;
+    errorbar(x, beta_mean_plot, beta_mean_err_plot, 'k.'); % beta_mean, beta_mean_err
+    xticks(x); 
+    xticklabels(RegionLabels);
+    % xticklabels(sel_chan_number);
+    set(gca, 'FontSize', 10);
+    xlabel('Region of Interest', 'FontSize', 12);
+    ylabel('Absolute Beta Weight', 'FontSize', 12);
+    title([subject{1} ' - Feature Importance - Mean'], 'FontSize', 14);
+    grid on;
+    
+    subplot(1, 2, 2);
+    % ylim([0 1])
+    bar(x, beta_max_plot);
+    hold on;
+    errorbar(x, beta_max_plot, beta_max_err_plot, 'k.'); % beta_max, beta_max_err
+    xticks(x); 
+    xticklabels(RegionLabels);
+    % xticklabels(sel_chan_number);
+    set(gca, 'FontSize', 10);
+    xlabel('Region of Interest', 'FontSize', 12);
+    title([subject{1} ' - Feature Importance - Max'], 'FontSize', 14);
+    grid on;
+
+end
+
+
+
+
+function weightsplotold(mean_weights,max_weights,sel_chan_number)
+
+    inputPath = fullfile('outputDataWavelet', subject);
+    filesToLoad = {'ROIbyChannel.mat'};
+    for i = 1:length(filesToLoad)
+        load(fullfile(inputPath, filesToLoad{i}));
+    end
+
 
     mean_abs_beta_flat = reshape(mean_weights, size(mean_weights,1), []);  % now size = [60 x 500]
     max_abs_beta_flat = reshape(max_weights, size(max_weights,1), []);
