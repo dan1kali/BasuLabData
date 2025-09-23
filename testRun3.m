@@ -10,17 +10,25 @@
 % 'MG116', 'MG117', 'MG118', 'MG120'
 
 % 'selChans - z-scored power','confChans - z-scored power', ...
-%     'selChans - non z-scored power','confChans - non z-scored power'
+%     'selChans - non z-scored power','confChans - non z-scored power' ...
+%      'selChans - z-scored power - rand','confChans - z-scored power - rand', ...
+%      'selChans - z-scored power - res','confChans - z-scored power - res', ...
+
+%% Plot Patient Data
 tic
 
-n = 40; % # correct trials
-subjects = {'BW42', 'MG51b', 'MG79', 'MG86'};
+n = 40; % minumum # of trials
+subjects = {'BW42', 'MG51b', 'MG79', 'MG86', ...
+'MG89', 'MG90', 'MG95', ...
+'MG96', 'MG99', 'MG102', 'MG104', ...
+'MG105', 'MG106', 'MG111', 'MG112',...
+'MG116', 'MG117', 'MG118', 'MG120'};
 
 config = {'selChans - z-scored power','confChans - z-scored power', ...
-    'selChans - non z-scored power','confChans - non z-scored power'};
+    'selChans - z-scored power - res','confChans - z-scored power - res'};
 
-% nBars = length(subjects);
-nBars = 1;
+nBars = length(subjects);
+% nBars = 1;
 nGroups = length(config);
 
 groupedBars = zeros(nBars,nGroups);
@@ -40,9 +48,24 @@ for igroup = 1:nGroups
     end
 end
 
-barplot(groupedBars, groupedErr, subjects, config)
+barplot(groupedBars, subjects, groupedErr, config)
 % weightsplot(mean_weights,max_weights,sel_chan_number) % only most recent sub and condition
 toc
+
+%% Plot number of channels/min number of Trials
+
+subjects = {'BW42', 'MG51b', 'MG79', 'MG86', ...
+'MG89', 'MG90',  'MG91', 'MG95', ...
+'MG96', 'MG99', 'MG102', 'MG104', ...
+'MG105', 'MG106', 'MG111', 'MG112',...
+'MG116', 'MG117', 'MG118', 'MG120'};
+
+nChannels = nTrialsMin(subjects);
+
+barplot(nChannels, subjects);
+ylim([0 175]); xlim([0 21]); title('Min Number of Trials per Patient')
+
+
 %% functions
 
 function [fea_number_con, fea_number_in, m_number_out,sel_chan_number] = concatenateFeatures(subject, m_number, n, config)
@@ -51,11 +74,21 @@ function [fea_number_con, fea_number_in, m_number_out,sel_chan_number] = concate
     
     filesToLoad = {'selectedChans.mat','conflictModChans.mat', ...
         'conPowerFeatures.mat','inPowerFeatures.mat', ...
-        'conBandPowerFeatures.mat', 'inBandPowerFeatures.mat'};
+        'conBandPowerFeatures.mat', 'inBandPowerFeatures.mat', ...
+        'allPowerFeatures.mat','conResPowerFeatures.mat','inResPowerFeatures.mat'};
     
     for i = 1:length(filesToLoad)
         load(fullfile(inputPath, filesToLoad{i}));
     end
+
+
+    nTrials = numel(allPowerFeatures); 
+    randomOrder = randperm(nTrials);
+    half = floor(nTrials/2);
+
+    conPowerFeaturesRand = allPowerFeatures(randomOrder(1:half));
+    inPowerFeaturesRand = allPowerFeatures(randomOrder(half+1:end));
+
 
      switch config{1}
          case 'confChans - z-scored power'
@@ -66,6 +99,26 @@ function [fea_number_con, fea_number_in, m_number_out,sel_chan_number] = concate
             sel_chan_number = selectedChans;
             conPower = conPowerFeatures;
             inPower = inPowerFeatures;
+
+         case 'confChans - z-scored power - rand'
+            sel_chan_number = conflictModChans;
+            conPower = conPowerFeaturesRand;
+            inPower = inPowerFeaturesRand;
+         case 'selChans - z-scored power - rand'
+            sel_chan_number = selectedChans;
+            conPower = conPowerFeaturesRand;
+            inPower = inPowerFeaturesRand;
+
+         case 'confChans - z-scored power - res'
+            sel_chan_number = conflictModChans;
+            conPower = conResPowerFeatures;
+            inPower = inResPowerFeatures;
+         case 'selChans - z-scored power - res'
+            sel_chan_number = selectedChans;
+            conPower = conResPowerFeatures;
+            inPower = inResPowerFeatures;
+
+         % Band power only 
          case 'confChans - non z-scored power'
             sel_chan_number = conflictModChans;
             conPower = conBandPowerFeatures;
@@ -108,15 +161,53 @@ function [fea_number_con, fea_number_in, m_number_out,sel_chan_number] = concate
     end
 end
 
+function nChannels = numberChannels(subjects)
+nChannels = zeros(length(subjects));
+
+    for i_sub = 1:length(subjects)
+        inputPath = fullfile('outputData', subjects);
+        
+        filesToLoad = {'conPowerFeatures.mat'};
+        
+        for i = 1:length(filesToLoad)
+            load(fullfile(inputPath{i_sub}, filesToLoad{i}));
+        end
+
+    nChannels(i_sub) = size(conPowerFeatures{1},1);
+    end
+
+end
+
+function nTrialsMin = nTrialsMin(subjects)
+nTrialsMin = zeros(length(subjects));
+
+    for i_sub = 1:length(subjects)
+        inputPath = fullfile('outputData', subjects);
+        
+        filesToLoad = {'conPowerFeatures.mat','inPowerFeatures.mat'};
+        
+        for i = 1:length(filesToLoad)
+            load(fullfile(inputPath{i_sub}, filesToLoad{i}));
+        end
+
+    nConTrials = numel(conPowerFeatures);
+    nInTrials = numel(inPowerFeatures);
+
+    nTrialsMin(i_sub) = min(nConTrials, nInTrials);
+    end
+
+end
+
 function [y, err,mean_weights,max_weights,sel_chan_number] = SVM(subjects,n,config)
 
     for i_randsamp = 1:50
-    m_number = 1;
+    % m_number = 1;
     fea_number_con = [];
     fea_number_in = [];
     
         for i_sub = 1:length(subjects)
-            [fea_con_tmp, fea_in_tmp, m_number,sel_chan_number] = concatenateFeatures(subjects{i_sub}, m_number, n,config);
+            m_number = 1;
+            [fea_con_tmp, fea_in_tmp, m_number_out,sel_chan_number] = concatenateFeatures(subjects{i_sub}, m_number, n,config);
             fea_number_con = [fea_number_con, fea_con_tmp]; % Concatenate horizontally
             fea_number_in = [fea_number_in, fea_in_tmp];
         end
@@ -145,8 +236,10 @@ function [y, err,mean_weights,max_weights,sel_chan_number] = SVM(subjects,n,conf
                     max_abs_beta  = zeros(length(max_idx), 10, 50);
                 end
 
-                mean_abs_beta (:,i,i_randsamp) = abs_beta(means_idx);
-                max_abs_beta (:,i,i_randsamp) = abs_beta(max_idx);
+                % mean_abs_beta (:,i,i_randsamp) = abs_beta(means_idx);
+                % max_abs_beta (:,i,i_randsamp) = abs_beta(max_idx);
+                mean_abs_beta (:,i,i_randsamp) = beta(means_idx);
+                max_abs_beta (:,i,i_randsamp) = beta(max_idx);
 
                 X_test = [fea_number_con(test_ind(i,:),:);fea_number_in(test_ind(i,:),:)];
                 labels = predict(Mdl,real(X_test)); % made real
@@ -170,7 +263,7 @@ function [y, err,mean_weights,max_weights,sel_chan_number] = SVM(subjects,n,conf
     max_weights = max_abs_beta;
 end
 
-function barplot(y, err, xlabels,config)
+function barplot(y, xlabels, err,config)
 
     [nBars, nGroups] = size(y);
 
@@ -191,7 +284,7 @@ function barplot(y, err, xlabels,config)
         xticks(1:nBars); xtickangle(45); xticklabels(xlabels);xlabel('Patient');
         x = nan(nBars, nGroups);
         for i = 1:nGroups
-            x(:,i) = b(i).XEndPoints;
+          x(:,i) = b(i).XEndPoints;
           % b(i).Labels = b(i).YData;
         end
         line([0 (nBars+1)],[50 50],'color','k','linestyle','--','linewidth',1);
@@ -211,26 +304,33 @@ function barplot(y, err, xlabels,config)
         end
     end
 
-    for i = 1:nGroups
-        if i <= 2
-            b(i).FaceColor = shades(i,:,1); % first group blue shades
-        else
-            b(i).FaceColor = shades(i-2,:,2); % second group red shades
+    if nGroups ==4
+        for i = 1:nGroups
+            if i <= 2
+                b(i).FaceColor = shades(i,:,1); % first group blue shades
+            else
+                b(i).FaceColor = shades(i-2,:,2); % second group red shades
+            end
         end
     end
     
     hold on;
 
-    er = errorbar(x,y,err); 
-
-    for ier = 1:numel(er)
+    if exist('err', 'var')
+        er = errorbar(x,y,err); 
+        for ier = 1:numel(er)
         er(ier).LineStyle = 'none'; er(ier).CapSize = 5; er(ier).Color = [0 0 0];
+        end
     end
 
     ylabel('Accuracy (%)');
-    title('Group 2 - 10 fold C-V, 50 sessions','FontSize',16);   
+    title('10 fold C-V, 50 sessions','FontSize',16);   
     set(gca,'box','off','tickDir','out')
-    legend(b,config,'Location', 'northwest')
+    grid on;
+    
+    if exist('config', 'var')
+        legend(b,config,'Location', 'northwest')
+    end
 end
 
 function weightsplot(mean_weights,max_weights,sel_chan_number)

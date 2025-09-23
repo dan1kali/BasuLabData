@@ -23,8 +23,7 @@
 %% 1) Preprocess
 
 tic
-files = {'MG111', 'MG117','MG118'};
-
+files = {'MG91'};
 
 pool = gcp('nocreate');
 if isempty(pool)
@@ -65,6 +64,30 @@ parfor i = 1:length(files)
     try
         fprintf('\nRunning conflictModAnalysis for patient: %s\n', files{i});
         conflictModAnalysis(files{i});
+    catch ME
+        fprintf('**** ERROR processing patient %s: %s *****\n', files{i}, ME.message);
+        continue;
+    end
+end
+toc
+
+%% 3) Assign labels randomly
+
+tic
+files = {'MG91'};
+
+
+pool = gcp('nocreate');
+if isempty(pool)
+    parpool(4);
+else
+    disp('Pool already running!');
+end
+
+parfor i = 1:length(files)
+    try
+        fprintf('\nRunning saveAllFeatures for patient: %s\n', files{i});
+        saveAllFeatures(files{i});
     catch ME
         fprintf('**** ERROR processing patient %s: %s *****\n', files{i}, ME.message);
         continue;
@@ -174,6 +197,124 @@ function preProcess(patient)
 
 end
 
+
+function saveAllFeatures(patient)
+
+% no more cell array, each trial of time x channels fed into spectrogram.
+% output per cell: [freq x time × Nchannels]
+% Changed all nChannels, dimensions accordingly
+
+    inputPath = fullfile('outputData', patient);
+    outputName = patient;
+    
+    filesToLoad = {'powerData.mat', 'powerTimeData.mat', ...
+        'selectedChans.mat','responseTimes.mat'};
+    
+    for i = 1:length(filesToLoad)
+        load(fullfile(inputPath, filesToLoad{i}));
+    end
+
+    nChannels = size(PowerData{1}, 3);
+    nTrials = length(PowerData);
+
+    band_power_zscore = cell(1, nTrials);
+    band_power_mean_max = cell(1, nTrials); % {trial} [column 1 = mean, column 2 = max]
+
+    t = PowerTimeData{1}(1,:); % assume all times uniform
+
+   %%%%%%%%%%%%%%%%% Electrode Responsiveness Analysis %%%%%%%%%%%%%%%%%
+
+    for ch = 1:nChannels
+
+        for tr=1:nTrials                        
+            % Calculate mean band power during 500 ms baseline
+
+
+            % ~~~~~~~~~~~~~~~~ Extract Baseline Power ~~~~~~~~~~~~~~~~~~~~
+            
+            % baseline extract: [-2s, +1s]
+            % baseline cut: [-0.5s, 0]
+
+            % t >= -0.5 & t <= 0;  % toggle to change window that is extracted
+            tBaseline_extract = t >= -2 & t <= 1;
+            tBaselinenew = t(tBaseline_extract);
+            tBaseline_cut = tBaselinenew >= -0.5 & tBaselinenew <= 0;
+            
+            S_baseline = PowerData{tr}(:,tBaseline_extract,ch);
+
+            m = mean(S_baseline,2); % mean across time (1 value per frequency)
+            expanded_m = repmat(m,1,size(S_baseline,2));
+
+            % Power during baseline over time, per channel/trial
+            S_baseline_norm = mean(S_baseline./expanded_m,1); 
+            S_baseline_cut = S_baseline_norm(tBaseline_cut); 
+
+            mu = mean(S_baseline_cut(:));
+            sigma = std(S_baseline_cut(:));
+    
+            % ~~~~~~~~~~~~~~~~ Whole Signal Power ~~~~~~~~~~~~~~~~~~~~
+
+            % Power during whole signal over time, per channel/trial
+            
+            % Try during [-0.5s onward] 
+            % t_orig = t;
+            % t = t(t>= -0.5);
+            % t_idx = t_orig >= -0.5;
+            
+
+            % trying whole signal
+            S_power = PowerData{tr}(:,:,ch);
+
+            m = mean(S_power,2); 
+            expanded_m = repmat(m,1,size(S_power,2));
+            S_power_norm = mean(S_power./expanded_m,1); 
+
+            % ~~~~~~~~~~~~~~~~~~~~ Calc Z Score ~~~~~~~~~~~~~~~~~~~~~~
+
+            band_power_zscore{tr} (ch, :) = (S_power_norm - mu) / sigma;  % Store in 3D matrix
+
+        end
+    end
+
+
+
+
+    %%%%%%%%%%%%%%%%%%%%% Feature Extraction From Z scores %%%%%%%%%%%%%%%% 
+
+    for tr=1:nTrials
+
+        band_power_mean_max{tr} = zeros(nChannels, 3);
+        
+        % for ch=1:nChannels
+            
+            % ~~~~~~~~~~~~~~~~~~~~~~ Save features ~~~~~~~~~~~~~~~~~~~~~~
+            
+            % Cut time window: only look at stimulus onset to behavioral response
+            tWindow = t >= 0 & t <= responseTimes(tr); 
+            % tWindow = t >= 0 & t <= nanmean(responseTimes); % MG91 only
+            tWindownew = t(tWindow);
+            S_epoched = band_power_zscore{tr}(:,tWindow);
+
+            % [1st column - mean, 2nd column - max]
+            band_power_mean_max{tr}(:,1) = mean(S_epoched, 2);  % mean over time
+            band_power_mean_max{tr}(:,2) = max(S_epoched, [],2);   % max over time
+            band_power_mean_max{tr}(:,3) = trapz(tWindownew, S_epoched,2);
+
+        % end
+    end
+
+    allPowerFeatures = band_power_mean_max;
+
+        
+    outputFolder = fullfile('outputData', outputName);
+    if ~exist(outputFolder, 'dir')
+        mkdir(outputFolder);
+    end
+
+    save(fullfile(outputFolder, 'allPowerFeatures.mat'), 'allPowerFeatures');
+end
+
+
 function conflictModAnalysis(patient)
 
 % no more cell array, each trial of time x channels fed into spectrogram.
@@ -203,6 +344,7 @@ function conflictModAnalysis(patient)
     responsiveChannels = false(nChannels, 1);  % initialize logical array per channel
 
     band_power_zscore = cell(1, nTrials);
+    res_band_power_zscore = cell(1, nTrials);
     band_power_mean_max = cell(1, nTrials); % {trial} [column 1 = mean, column 2 = max]
 
     t = PowerTimeData{1}(1,:); % assume all times uniform
@@ -283,18 +425,22 @@ function conflictModAnalysis(patient)
     end
 
 
-    %%%%%%%%%%%%%%%%%%%%% Feature Extraction From Z scores %%%%%%%%%%%%%%%% 
 
+    %%%%%%%%%%%%%%%%%%%%% Feature Extraction From Z scores %%%%%%%%%%%%%%%% 
+    
+    resT = t - meanRT;
     for tr=1:nTrials
 
         band_power_mean_max{tr} = zeros(nChannels, 3);
+        res_band_power_mean_max{tr} = zeros(nChannels, 3);
         
-        % for ch=1:nChannels
+        for ch=1:nChannels
             
             % ~~~~~~~~~~~~~~~~~~~~~~ Save features ~~~~~~~~~~~~~~~~~~~~~~
             
             % Cut time window: only look at stimulus onset to behavioral response
             tWindow = t >= 0 & t <= responseTimes(tr); 
+            % tWindow = t >= 0 & t <= nanmean(responseTimes); % MG91 only
             tWindownew = t(tWindow);
             S_epoched = band_power_zscore{tr}(:,tWindow);
 
@@ -303,11 +449,27 @@ function conflictModAnalysis(patient)
             band_power_mean_max{tr}(:,2) = max(S_epoched, [],2);   % max over time
             band_power_mean_max{tr}(:,3) = trapz(tWindownew, S_epoched,2);
 
-        % end
-    end
 
+            % ~~~~~~~~~~~~~ Save response aligned features ~~~~~~~~~~~~~~~~~~
+            % Build response aligned z scores
+            rt = responseTimes(tr); % Build response aligned
+            t_resp = t - rt;  % re-align t to response at t = 0
+            res_band_power_zscore{tr}(ch,:) = interp1(t_resp, band_power_zscore{tr}(ch,:), resT, 'linear', NaN);   
+
+            % [1st column - mean, 2nd column - max]
+            res_band_power_mean_max{tr}(:,1) = mean(S_epoched, 2);  % mean over time
+            res_band_power_mean_max{tr}(:,2) = max(S_epoched, [],2);   % max over time
+            res_band_power_mean_max{tr}(:,3) = trapz(tWindownew, S_epoched,2);
+
+        end
+    end
+    % normal features
     conPowerFeatures = band_power_mean_max(Trials_C_clean);
     inPowerFeatures  = band_power_mean_max(Trials_I_clean);
+
+    % response aligned
+    conResPowerFeatures = band_power_mean_max(Trials_C_clean);
+    inResPowerFeatures  = band_power_mean_max(Trials_I_clean);
 
 
     %%%%%%%%%%%%%%%%%%%%%% Conflict Modulation Analysis %%%%%%%%%%%%%%%%%
@@ -318,20 +480,19 @@ function conflictModAnalysis(patient)
 
     nChannels = size(PowerData{1}, 3);
     nTime = length(t);
-    resT = t - meanRT;
 
     alpha = 0.1;
     nPermutations = 1000;
     conflictModChan = false(nChannels, 1); % final output per channel
-    
+
     % Convert cell array to trial x time matrix per channel
     for ch = 1:nChannels
-        
+
         stimConMatrix = zeros(nConTrials, nTime);
         stimInMatrix = zeros(nInTrials, nTime);
         resConMatrix = zeros(nConTrials, nTime);
         resInMatrix = zeros(nInTrials, nTime);
-        
+
         % Congruent matrices
         for i = 1:nConTrials % Build stimulus aligned
             stimConMatrix(i, :) = band_power_zscore{Trials_C_clean(i)}(ch, :);
@@ -340,7 +501,7 @@ function conflictModAnalysis(patient)
             t_resp = t - rt; % re-align t to response at t = 0
             resConMatrix(i, :) = interp1(t_resp, band_power_zscore{Trials_C_clean(i)}(ch,:), resT, 'linear', NaN);
         end
-        
+
         % Repeat for incongruent
         for i = 1:nInTrials
             stimInMatrix(i, :) = band_power_zscore{Trials_I_clean(i)}(ch, :);
@@ -352,7 +513,7 @@ function conflictModAnalysis(patient)
 
         timeWindowStim = find(t >= 0 & t <= meanRT);
         timeWindowRes = find(resT >= -meanRT & resT <= 0); % assume all NaNs will get cut
-            
+
         % Run permutation tests at each time bin
         p1 = NaN(1, nTime); % initialize p-values vector at each time bin
         for ti = timeWindowStim
@@ -363,13 +524,13 @@ function conflictModAnalysis(patient)
         for ti = timeWindowRes
             p2(ti) = permutationTest(resConMatrix(:, ti), resInMatrix(:, ti), nPermutations);
         end
-    
+
         % mask of significant p values: >=0.05 -> 1, <0.05 -> 0
         h1 = false(1, nTime);
         h2 = false(1, nTime);
         h1(p1 <= alpha) = true;
         h2(p2 <= alpha) = true;
-    
+
         % Check for 15 consecutive significant bins (10 ms step between bins, want 150 ms)
         windowSize = 15;
         h1sum15 = movsum(h1, [windowSize - 1, 0]);  % moving sum of 15 consecutive bins
@@ -377,17 +538,17 @@ function conflictModAnalysis(patient)
         isConflictMod = any(h1sum15 >= windowSize) &&  any(h2sum15 >= windowSize);
 
         %%%%% can try changing to 100 ms --> 10 10ms bins %%%%
-    
+
         conflictModChan(ch) = isConflictMod;
         conflictModChans = find(conflictModChan==1);
         conflictModChans = conflictModChans(ismember(conflictModChans, selectedChans));
 
     end
-        
+
     finalChannelList = conflictModChan & responsiveChannels;
     fprintf('\n%d/%d channels (%.2f%%) are conflict modulated.\nWith alpha = %.2f, # permutations = %d\n', ...
     sum(finalChannelList), nChannels, 100 * sum(finalChannelList) / nChannels, alpha, nPermutations);
-    
+
     outputFolder = fullfile('outputData', outputName);
     if ~exist(outputFolder, 'dir')
         mkdir(outputFolder);
@@ -397,6 +558,8 @@ function conflictModAnalysis(patient)
     save(fullfile(outputFolder, 'powerTimeData.mat'), 'PowerTimeData');
     save(fullfile(outputFolder, 'conPowerFeatures.mat'), 'conPowerFeatures');
     save(fullfile(outputFolder, 'inPowerFeatures.mat'), 'inPowerFeatures');
+    save(fullfile(outputFolder, 'conResPowerFeatures.mat'), 'conResPowerFeatures');
+    save(fullfile(outputFolder, 'inResPowerFeatures.mat'), 'inResPowerFeatures');
 end
 
 function [band_power_mean_max, normalized_band_power, power_time_data] = extractPowerFeatures3_1(data, timeData, responseTimes,sr)
@@ -436,6 +599,7 @@ function [band_power_mean_max, normalized_band_power, power_time_data] = extract
         %%% (method 1) extract only part of signal 
         
         tWindow_cut = t >= 0 & t <= responseTimes(tr); % stim onset to behavioral response
+        % tWindow_cut = t >= 0 & t <= nanmean(responseTimes); % for MG91 only
         S_extract_epoched = S(tWindow_cut,:,:); 
         m = mean(S_extract_epoched,1); % mean across time (1 value per frequency)
         expanded_m = repmat(m,size(S_extract_epoched,1),1,1);
