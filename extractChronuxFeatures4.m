@@ -13,7 +13,7 @@
 % 1) Preprocess for a given patient(s)
 %   - Extracts power data, and generates features from that power data (not
 %   z scores)
-%   - saved in a directory called outputData
+%   - saved in a directory called outputDataChronuxUC
 
 % 2) Then apply conflict modulation analysis
 %   - this creates indices for conflict modulation
@@ -23,11 +23,13 @@
 %% 1) Preprocess
 
 tic
-files = {'MG91'};
+files = {'UCMC01', 'UCMC02', 'UCMC03', 'UCMC05', ...
+'UCMC06', 'UCMC07', 'UCMC08', 'UCMC09', ...
+'UCMC11', 'UCMC13', 'UCMC14', 'UCMC15', 'UCMC17'};
 
 pool = gcp('nocreate');
 if isempty(pool)
-    parpool(4);
+    parpool(2);
 else
     disp('Pool already running!');
 end
@@ -47,15 +49,13 @@ toc
 %% 2) Conflict Mod Analysis
 
 tic
-files = {'BW42', 'MG51b', 'MG79', 'MG86', ...
-'MG89', 'MG90', 'MG95', ...
-'MG96', 'MG99', 'MG102', 'MG104', ...
-'MG105', 'MG106', 'MG111', 'MG112', ...
-'MG116', 'MG117', 'MG118', 'MG120'};
+files = {'UCMC01', 'UCMC02', 'UCMC03', 'UCMC05', ...
+'UCMC06', 'UCMC07', 'UCMC08', 'UCMC09', ...
+'UCMC11', 'UCMC13', 'UCMC14', 'UCMC15', 'UCMC17'};
 
 pool = gcp('nocreate');
 if isempty(pool)
-    parpool(4);
+    parpool(2);
 else
     disp('Pool already running!');
 end
@@ -142,7 +142,7 @@ function preProcess(patient)
     % Identify artifact trials per channel
     artifact_mask = amplitudes > thresholds;      % [trials x channels]
     % bad_trials = any(artifact_mask, 1) | isnan(TrialDet(:,12))';
-    bad_trials = any(artifact_mask, 1) | TrialDet(:,27)' ~= 1; % must = 1 for correct trials
+    bad_trials = any(artifact_mask, 1) | TrialDet(:,27)' ~= 1 | isnan(TrialDet(:,12)'); % must = 1 for correct trials
     bad_trials = bad_trials';                     % convert to column [trials x 1]
     clean_trials_idx = find(~bad_trials);         % indices of good trials
         
@@ -163,6 +163,18 @@ function preProcess(patient)
     fprintf('\nRejected %d of %d trials (%.2f%%)\n', ...
         sum(bad_trials), nTrials, 100 * sum(bad_trials) / nTrials);
 
+
+
+    %%%%%%%%%%%%%%%%% Channels for ROI %%%%%%%%%%%%%%%%%
+
+    RegionsofInterest = {'dlPFC','dmPFC','OFC','vlPFC','STG','MTG','ITG','dACC','AMY','HIP'};
+    ROIbyChannel = cell(length(RegionsofInterest),1);
+    for ir = 1:length(RegionsofInterest)
+        ROIbyChannel{ir} = find(strcmp(channelROI, RegionsofInterest{ir}))';
+    end
+
+
+
     %%%%%%%%%%%%%%%%% Feature Extraction %%%%%%%%%%%%%%%%%
     
     timeData = ft_data_clean.time;
@@ -181,7 +193,7 @@ function preProcess(patient)
     conBandPowerFeatures = PowerFeatures(Trials_C_clean);
     inBandPowerFeatures  = PowerFeatures(Trials_I_clean);
 
-    outputFolder = fullfile('outputData', outputName);
+    outputFolder = fullfile('outputDataChronuxUC', outputName);
     if ~exist(outputFolder, 'dir')
         mkdir(outputFolder);
     end
@@ -194,6 +206,7 @@ function preProcess(patient)
     save(fullfile(outputFolder, 'responseTimes.mat'), 'responseTimes');
     save(fullfile(outputFolder, 'trialsC.mat'), 'Trials_C_clean');
     save(fullfile(outputFolder, 'trialsI.mat'), 'Trials_I_clean');
+    save(fullfile(outputFolder, 'ROIbyChannel.mat'), 'ROIbyChannel');
 
 end
 
@@ -204,7 +217,7 @@ function saveAllFeatures(patient)
 % output per cell: [freq x time × Nchannels]
 % Changed all nChannels, dimensions accordingly
 
-    inputPath = fullfile('outputData', patient);
+    inputPath = fullfile('outputDataChronuxUC', patient);
     outputName = patient;
     
     filesToLoad = {'powerData.mat', 'powerTimeData.mat', ...
@@ -306,7 +319,7 @@ function saveAllFeatures(patient)
     allPowerFeatures = band_power_mean_max;
 
         
-    outputFolder = fullfile('outputData', outputName);
+    outputFolder = fullfile('outputDataChronuxUC', outputName);
     if ~exist(outputFolder, 'dir')
         mkdir(outputFolder);
     end
@@ -321,7 +334,7 @@ function conflictModAnalysis(patient)
 % output per cell: [freq x time × Nchannels]
 % Changed all nChannels, dimensions accordingly
 
-    inputPath = fullfile('outputData', patient);
+    inputPath = fullfile('outputDataChronuxUC', patient);
     outputName = patient;
     
     filesToLoad = {'powerData.mat', 'powerTimeData.mat', ...
@@ -549,7 +562,7 @@ function conflictModAnalysis(patient)
     fprintf('\n%d/%d channels (%.2f%%) are conflict modulated.\nWith alpha = %.2f, # permutations = %d\n', ...
     sum(finalChannelList), nChannels, 100 * sum(finalChannelList) / nChannels, alpha, nPermutations);
 
-    outputFolder = fullfile('outputData', outputName);
+    outputFolder = fullfile('outputDataChronuxUC', outputName);
     if ~exist(outputFolder, 'dir')
         mkdir(outputFolder);
     end
@@ -588,7 +601,7 @@ function [band_power_mean_max, normalized_band_power, power_time_data] = extract
         
         % ~~~~~~~~~~~~ Save time-frequency power data ~~~~~~~~~~~~~~
         
-        % Transpose each page: time x freq --> freq x time
+        % Transpose each page: (time x freq --> freq x time) x channels
         % Save all band power in frequency x time
         normalized_band_power {tr} = pagetranspose(S);
         t = t + timeData{1}(1);  % shift t
