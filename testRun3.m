@@ -9,7 +9,13 @@
 % 'MG105', 'MG106', 'MG111', 'MG112',...
 % 'MG116', 'MG117', 'MG118', 'MG120'
 
+
+% 'UCMC02', 'UCMC03', 'UCMC05', ...
+% 'UCMC06', 'UCMC07', 'UCMC08', 'UCMC09', ...
+% 'UCMC11', 'UCMC13', 'UCMC14'
+
 % 'selChans - z-scored power','confChans - z-scored power', ...
+%   'selChans - normalized log power',  'confChans - normalized log power'
 %     'selChans - non z-scored power','confChans - non z-scored power' ...
 %      'selChans - z-scored power - rand','confChans - z-scored power - rand', ...
 %      'selChans - z-scored power - res','confChans - z-scored power - res', ...
@@ -18,9 +24,9 @@
 tic
 
 n = 40; % minumum # of trials
-subjects = {'MG102'};
+subjects = {'UCMC01','UCMC02'};
 
-config = {'selChans - z-scored power'};
+config = {'confChans - z-scored power'};
 
 nBars = length(subjects);
 % nBars = 1;
@@ -42,12 +48,9 @@ for igroup = 1:nGroups
             groupedErr(ibar,igroup) = err;
         end
     end
-
     % catch ME
     % disp(getReport(ME, 'extended'));
     % end
-
-
 end
 
 % barplot(groupedBars, subjects, groupedErr, config)
@@ -72,15 +75,17 @@ ylim([0 175]); xlim([0 21]); title('Min Number of Trials per Patient')
 
 function [fea_number_con, fea_number_in, m_number_out,sel_chan_number] = concatenateFeatures(subject, m_number, n, config)
     
-    inputPath = fullfile('outputDataWavelet', subject);
+    inputPath = fullfile('outputDataChronuxUC', subject);
     
     filesToLoad = {'selectedChans.mat','conflictModChans.mat', ...
-        'conPowerFeatures.mat','inPowerFeatures.mat', ...
         'conBandPowerFeatures.mat', 'inBandPowerFeatures.mat', ...
-        'conResPowerFeatures.mat','inResPowerFeatures.mat'};
+        'conPowerFeatures.mat','inPowerFeatures.mat', ...
+        'conResPowerFeatures.mat','inResPowerFeatures.mat'};        
+
         % 'allPowerFeatures.mat', ...
         % 'ROIbyChannel.mat',...
-    
+        % 'conLogPowerFeatures.mat','inLogPowerFeatures.mat', ...
+       
     for i = 1:length(filesToLoad)
         load(fullfile(inputPath, filesToLoad{i}));
     end
@@ -103,6 +108,17 @@ function [fea_number_con, fea_number_in, m_number_out,sel_chan_number] = concate
             conPower = conPowerFeatures;
             inPower = inPowerFeatures;
 
+         % Log power only (non response aligned)
+         case 'confChans - normalized log power'
+            sel_chan_number = conflictModChans;
+            conPower = conPowerFeatures;
+            inPower = inPowerFeatures;
+         case 'selChans - normalized log power'
+            sel_chan_number = selectedChans;
+            conPower = conPowerFeatures;
+            inPower = inPowerFeatures;
+
+         % Random labels
          case 'confChans - z-scored power - rand'
             sel_chan_number = conflictModChans;
             conPower = conPowerFeaturesRand;
@@ -112,6 +128,7 @@ function [fea_number_con, fea_number_in, m_number_out,sel_chan_number] = concate
             conPower = conPowerFeaturesRand;
             inPower = inPowerFeaturesRand;
 
+         % Response aligned
          case 'confChans - z-scored power - res'
             sel_chan_number = conflictModChans;
             conPower = conResPowerFeatures;
@@ -130,6 +147,8 @@ function [fea_number_con, fea_number_in, m_number_out,sel_chan_number] = concate
             sel_chan_number = selectedChans;
             conPower = conBandPowerFeatures;
             inPower = inBandPowerFeatures;
+         
+
          otherwise
             error('Unknown config: %s\n', config{1});
     end
@@ -288,6 +307,7 @@ function barplot(y, xlabels, err,config)
             hold on
         end
         x = 1:nGroups;  % positions match bar indices
+        xlim([0 (nBars+1)]);
         for i = 1:nGroups
             b(i).Labels = b(i).YData;
         end
@@ -296,6 +316,7 @@ function barplot(y, xlabels, err,config)
         ylim([00 125]); 
     else
         b = bar(y, 'BarWidth', 1);
+        xlim([0 (nBars+1)]);
         xticks(1:nBars); xtickangle(45); xticklabels(xlabels);xlabel('Patient');
         x = nan(nBars, nGroups);
         for i = 1:nGroups
@@ -350,16 +371,29 @@ end
 
 function weightsplot(mean_weights,max_weights,sel_chan_number,subject)
 
-    inputPath = fullfile('outputDataWavelet', subject);
+    inputPath = fullfile('outputDataChronuxUC', subject);
     filesToLoad = {'ROIbyChannel.mat'};
+    
     for i = 1:length(filesToLoad)
         filePath = char(fullfile(inputPath, filesToLoad{i}));  % Convert to char
-        load(filePath);
+        ROIchannels = cell(1,length(filesToLoad));
+        for i_sub = 1:length(subject)
+            load((filePath(i_sub, :)));
+            ROIchannels{i_sub} = ROIbyChannel;
+        end
     end
+
+    % for i_sub = 1:length(subjects)
+    %     inputPath = fullfile('outputDataWaveletUC', subject);
+    %     filesToLoad = {'ROIbyChannel.mat'};
+    %     for i = 1:length(filesToLoad)
+    %         load(fullfile(inputPath{i_sub}, filesToLoad{i}));
+    %     end
+    % end
 
     mean_abs_beta_flat = reshape(mean_weights, size(mean_weights,1), []);  % now size = [60 x 500]
     max_abs_beta_flat = reshape(max_weights, size(max_weights,1), []);
-    
+
     beta_mean = squeeze(mean(mean_weights,[2 3]));
     beta_max = squeeze(mean(max_weights,[2 3]));
 
@@ -368,58 +402,111 @@ function weightsplot(mean_weights,max_weights,sel_chan_number,subject)
 
 
     if exist("ROIbyChannel",'var')
-    beta_mean_plot = zeros(numel(ROIbyChannel),1);
-    beta_max_plot = zeros(numel(ROIbyChannel),1);
-    beta_mean_err_plot = zeros(numel(ROIbyChannel),1);
-    beta_max_err_plot = zeros(numel(ROIbyChannel),1);
+        beta_mean_plot = zeros(10,length(subject));
+        beta_max_plot = zeros(10,length(subject));
+        beta_mean_err_plot = zeros(10,length(subject));
+        beta_max_err_plot = zeros(10,length(subject));
+            
+        for i_sub = 1:length(subject)        
+            nROI = numel(ROIchannels{i_sub});
+        
+            for iROI = 1:nROI
+                
+                subjectROI = ROIchannels{i_sub};
+                channelsinROI = find(ismember(sel_chan_number, subjectROI{iROI}));
 
-        for ich = 1:numel(ROIbyChannel)
-            channelsinROI = find(ismember(sel_chan_number, ROIbyChannel{ich}));
-            if isempty(channelsinROI)
-                beta_mean_plot(ich) = 0;
-                beta_max_plot(ich) = 0;
-                beta_mean_err_plot(ich) = 0;
-                beta_max_err_plot(ich) = 0;
-            else
-                beta_mean_plot(ich) = mean(beta_mean(channelsinROI));
-                beta_max_plot(ich) = mean(beta_max(channelsinROI));
-                beta_mean_err_plot(ich) = mean(beta_mean_err(channelsinROI));
-                beta_max_err_plot(ich) = mean(beta_max_err(channelsinROI));
+                if isempty(channelsinROI)
+                    beta_mean_plot (iROI,i_sub) = 0;
+                    beta_max_plot (iROI,i_sub) = 0;
+                    beta_mean_err_plot (iROI,i_sub) = 0;
+                    beta_max_err_plot (iROI,i_sub) = 0;
+                else
+                    beta_mean_plot (iROI,i_sub) = mean(beta_mean(channelsinROI));
+                    beta_max_plot (iROI,i_sub) = mean(beta_max(channelsinROI));
+                    beta_mean_err_plot (iROI,i_sub) = mean(beta_mean_err(channelsinROI));
+                    beta_max_err_plot (iROI,i_sub) = mean(beta_max_err(channelsinROI));
+                end
             end
         end
     end
 
     RegionLabels = {'dlPFC', 'dmPFC', 'OFC', 'vlPFC', 'STG', 'MTG', 'ITG', 'dACC', 'AMY', 'HIP'};
 
-    x = 1:length(beta_mean_plot);  % 1 to 60
-    
+    [nBars, nGroups] = size(beta_mean_plot);
+
     figure;
     subplot(1, 2, 1);
-    % ylim([0 1])
-    bar(x, beta_mean_plot);
+    b1 = bar(beta_mean_plot, 'BarWidth', 1,);
+    xlim([0 (nBars+1)]); xticks(1:nBars); xticklabels(RegionLabels);
+
+    x = nan(nBars, nGroups);
+    for i = 1:nGroups
+      x(:,i) = b1(i).XEndPoints;
+      % b1(i).Labels = b(i).YData;
+    end
+
     hold on;
-    errorbar(x, beta_mean_plot, beta_mean_err_plot, 'k.'); % beta_mean, beta_mean_err
-    xticks(x); 
-    xticklabels(RegionLabels);
-    % xticklabels(sel_chan_number);
+    er = errorbar(x,beta_mean_plot,beta_mean_err_plot); 
+    for ier = 1:numel(er)
+        er(ier).LineStyle = 'none'; er(ier).CapSize = 5; er(ier).Color = [0 0 0];
+    end
+
     set(gca, 'FontSize', 10);
     xlabel('Region of Interest', 'FontSize', 12);
     ylabel('Absolute Beta Weight', 'FontSize', 12);
-    title([subject{1} ' - Feature Importance - Mean'], 'FontSize', 14);
+    title('Feature Importance - Mean', 'FontSize', 14);
+    % title([subject{1} ' - Feature Importance - Mean'], 'FontSize', 14);
+    legend(b1,subject,'Location', 'northwest')
+
     grid on;
     
     subplot(1, 2, 2);
-    % ylim([0 1])
-    bar(x, beta_max_plot);
+    b2 = bar(beta_max_plot, 'BarWidth', 1);
+    xlim([0 (nBars+1)]); xticks(1:nBars); xticklabels(RegionLabels);
+    
     hold on;
-    errorbar(x, beta_max_plot, beta_max_err_plot, 'k.'); % beta_max, beta_max_err
-    xticks(x); 
-    xticklabels(RegionLabels);
-    % xticklabels(sel_chan_number);
+    er = errorbar(x,beta_max_plot,beta_max_err_plot); 
+    for ier = 1:numel(er)
+        er(ier).LineStyle = 'none'; er(ier).CapSize = 5; er(ier).Color = [0 0 0];
+    end
+
     set(gca, 'FontSize', 10);
     xlabel('Region of Interest', 'FontSize', 12);
-    title([subject{1} ' - Feature Importance - Max'], 'FontSize', 14);
+    title('Feature Importance - Max', 'FontSize', 14);
+    % title([subject{1} ' - Feature Importance - Max'], 'FontSize', 14);
+    legend(b2,subject,'Location', 'northwest')
     grid on;
+
+
+    % x = 1:length(beta_mean_plot);  % 1 to 60
+    % 
+    % figure;
+    % subplot(1, 2, 1);
+    % % ylim([0 1])
+    % bar(x, beta_mean_plot);
+    % hold on;
+    % errorbar(x, beta_mean_plot, beta_mean_err_plot, 'k.'); % beta_mean, beta_mean_err
+    % xticks(x); 
+    % xticklabels(RegionLabels);
+    % % xticklabels(sel_chan_number);
+    % set(gca, 'FontSize', 10);
+    % xlabel('Region of Interest', 'FontSize', 12);
+    % ylabel('Absolute Beta Weight', 'FontSize', 12);
+    % title([subject{1} ' - Feature Importance - Mean'], 'FontSize', 14);
+    % grid on;
+    % 
+    % subplot(1, 2, 2);
+    % % ylim([0 1])
+    % bar(x, beta_max_plot);
+    % hold on;
+    % errorbar(x, beta_max_plot, beta_max_err_plot, 'k.'); % beta_max, beta_max_err
+    % xticks(x); 
+    % xticklabels(RegionLabels);
+    % % xticklabels(sel_chan_number);
+    % set(gca, 'FontSize', 10);
+    % xlabel('Region of Interest', 'FontSize', 12);
+    % title([subject{1} ' - Feature Importance - Max'], 'FontSize', 14);
+    % grid on;
 
 end
 
@@ -428,7 +515,7 @@ end
 
 function weightsplotold(mean_weights,max_weights,sel_chan_number)
 
-    inputPath = fullfile('outputDataWavelet', subject);
+    inputPath = fullfile('outputDataChronuxUC', subject);
     filesToLoad = {'ROIbyChannel.mat'};
     for i = 1:length(filesToLoad)
         load(fullfile(inputPath, filesToLoad{i}));
