@@ -14,6 +14,13 @@
 % 'UCMC06', 'UCMC07', 'UCMC08', 'UCMC09', ...
 % 'UCMC11', 'UCMC13', 'UCMC14'
 
+
+
+% 'UCMC01', 'UCMC02', 'UCMC03', 'UCMC05', ...
+% 'UCMC06', 'UCMC07', 'UCMC08', 'UCMC09', ...
+% 'UCMC11', 'UCMC13', 'UCMC14', 'UCMC15', 'UCMC17'
+
+
 % 'selChans - z-scored power','confChans - z-scored power', ...
 %   'selChans - normalized log power',  'confChans - normalized log power'
 %     'selChans - non z-scored power','confChans - non z-scored power' ...
@@ -24,7 +31,9 @@
 tic
 
 n = 40; % minumum # of trials
-subjects = {'UCMC01','UCMC02'};
+subjects = {'UCMC01', 'UCMC02', 'UCMC03', 'UCMC05', ...
+'UCMC06', 'UCMC07', 'UCMC08', 'UCMC09', ...
+'UCMC11', 'UCMC13', 'UCMC14', 'UCMC15', 'UCMC17'};
 
 config = {'confChans - z-scored power'};
 
@@ -432,129 +441,56 @@ function weightsplot(mean_weights,max_weights,sel_chan_number,subject)
 
     RegionLabels = {'dlPFC', 'dmPFC', 'OFC', 'vlPFC', 'STG', 'MTG', 'ITG', 'dACC', 'AMY', 'HIP'};
 
+    
+    beta_mean_plot = mean(beta_mean_plot,2);
+    beta_mean_err_plot = mean(beta_mean_err_plot,2);
+    beta_max_plot = mean(beta_max_plot,2);
+    beta_max_err_plot = mean(beta_max_err_plot,2);
+
+
     [nBars, nGroups] = size(beta_mean_plot);
 
     figure;
-    subplot(1, 2, 1);
-    b1 = bar(beta_mean_plot, 'BarWidth', 1,);
+    tiledlayout(1, 2);
+    
+    meanplot = nexttile;
+    b1 = bar(beta_mean_plot, 'grouped','BarWidth', 1);
     xlim([0 (nBars+1)]); xticks(1:nBars); xticklabels(RegionLabels);
 
     x = nan(nBars, nGroups);
     for i = 1:nGroups
-      x(:,i) = b1(i).XEndPoints;
-      % b1(i).Labels = b(i).YData;
+        x(:,i) = b1(i).XEndPoints;
     end
-
+        
     hold on;
-    er = errorbar(x,beta_mean_plot,beta_mean_err_plot); 
+    er = errorbar(x, beta_mean_plot, beta_mean_err_plot); 
     for ier = 1:numel(er)
         er(ier).LineStyle = 'none'; er(ier).CapSize = 5; er(ier).Color = [0 0 0];
     end
-
     set(gca, 'FontSize', 10);
     xlabel('Region of Interest', 'FontSize', 12);
     ylabel('Absolute Beta Weight', 'FontSize', 12);
     title('Feature Importance - Mean', 'FontSize', 14);
-    % title([subject{1} ' - Feature Importance - Mean'], 'FontSize', 14);
-    legend(b1,subject,'Location', 'northwest')
-
     grid on;
     
-    subplot(1, 2, 2);
-    b2 = bar(beta_max_plot, 'BarWidth', 1);
+    maxplot = nexttile;
+    b2 = bar(beta_max_plot, 'grouped','BarWidth', 1);
     xlim([0 (nBars+1)]); xticks(1:nBars); xticklabels(RegionLabels);
-    
     hold on;
-    er = errorbar(x,beta_max_plot,beta_max_err_plot); 
+    er = errorbar(x, beta_max_plot, beta_max_err_plot); 
     for ier = 1:numel(er)
         er(ier).LineStyle = 'none'; er(ier).CapSize = 5; er(ier).Color = [0 0 0];
     end
-
-    set(gca, 'FontSize', 10);
     xlabel('Region of Interest', 'FontSize', 12);
     title('Feature Importance - Max', 'FontSize', 14);
-    % title([subject{1} ' - Feature Importance - Max'], 'FontSize', 14);
-    legend(b2,subject,'Location', 'northwest')
+    legend(b2, subject, 'Location', 'northwest');
     grid on;
-
-
-    % x = 1:length(beta_mean_plot);  % 1 to 60
-    % 
-    % figure;
-    % subplot(1, 2, 1);
-    % % ylim([0 1])
-    % bar(x, beta_mean_plot);
-    % hold on;
-    % errorbar(x, beta_mean_plot, beta_mean_err_plot, 'k.'); % beta_mean, beta_mean_err
-    % xticks(x); 
-    % xticklabels(RegionLabels);
-    % % xticklabels(sel_chan_number);
-    % set(gca, 'FontSize', 10);
-    % xlabel('Region of Interest', 'FontSize', 12);
-    % ylabel('Absolute Beta Weight', 'FontSize', 12);
-    % title([subject{1} ' - Feature Importance - Mean'], 'FontSize', 14);
-    % grid on;
-    % 
-    % subplot(1, 2, 2);
-    % % ylim([0 1])
-    % bar(x, beta_max_plot);
-    % hold on;
-    % errorbar(x, beta_max_plot, beta_max_err_plot, 'k.'); % beta_max, beta_max_err
-    % xticks(x); 
-    % xticklabels(RegionLabels);
-    % % xticklabels(sel_chan_number);
-    % set(gca, 'FontSize', 10);
-    % xlabel('Region of Interest', 'FontSize', 12);
-    % title([subject{1} ' - Feature Importance - Max'], 'FontSize', 14);
-    % grid on;
-
-end
-
-
-
-
-function weightsplotold(mean_weights,max_weights,sel_chan_number)
-
-    inputPath = fullfile('outputDataChronuxUC', subject);
-    filesToLoad = {'ROIbyChannel.mat'};
-    for i = 1:length(filesToLoad)
-        load(fullfile(inputPath, filesToLoad{i}));
+    
+    if nGroups ~= 1
+        legend(b1, subject, 'Location', 'northwest');
+        legend(b2, subject, 'Location', 'northwest');
+    else
     end
 
-
-    mean_abs_beta_flat = reshape(mean_weights, size(mean_weights,1), []);  % now size = [60 x 500]
-    max_abs_beta_flat = reshape(max_weights, size(max_weights,1), []);
-    
-    beta_mean = squeeze(mean(mean_weights,[2 3]));
-    beta_max = squeeze(mean(max_weights,[2 3]));
-
-    beta_mean_err = std(mean_abs_beta_flat,0,2)/sqrt(size(mean_abs_beta_flat, 2)); 
-    beta_max_err = std(max_abs_beta_flat,0,2)/sqrt(size(max_abs_beta_flat, 2)); 
-
-    x = 1:length(beta_mean);  % 1 to 60
-    
-    figure;
-    subplot(1, 2, 1);
-    % ylim([0 1])
-    bar(x, beta_mean);
-    hold on;
-    errorbar(x, beta_mean, beta_mean_err, 'k.');
-    xticks(x); xticklabels(sel_chan_number);
-    set(gca, 'FontSize', 6);
-    xlabel('Channel Number', 'FontSize', 12);
-    ylabel('Absolute Beta Weight', 'FontSize', 12);
-    title('Feature Importance - Mean', 'FontSize', 14);
-    grid on;
-    
-    subplot(1, 2, 2);
-    % ylim([0 1])
-    bar(x, beta_max);
-    hold on;
-    errorbar(x, beta_max, beta_max_err, 'k.');
-    xticks(x); xticklabels(sel_chan_number);
-    set(gca, 'FontSize', 6);
-    xlabel('Channel Number', 'FontSize', 12);
-    title('Feature Importance - Max', 'FontSize', 14);
-    grid on;
-
+    linkaxes([meanplot, maxplot], 'y');
 end
