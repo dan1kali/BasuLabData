@@ -387,72 +387,7 @@ function conflictModAnalysis(patient)
             band_power_norm{tr} (ch, :) = log(mean(S_power_final / S_baseline_meaned_rep),1);  % Store in 3D matrix
             % band_power_norm{tr} (ch, :) = (S_power_final - mu) / sigma;  % Store in 3D matrix
 
-
-            % old
-            % % ~~~~~~~~~~~~~~~~ Extract Baseline Power ~~~~~~~~~~~~~~~~~~~~
-            % 
-            % % baseline extract: [-2s, +1s]
-            % % baseline cut: [-0.5s, 0]
-            % 
-            % tBaseline_extract = t >= -2 & t <= 1; % toggle to change window that is extracted
-            % tBaselinenew = t(tBaseline_extract);
-            % tBaseline_cut = tBaselinenew >= -0.5 & tBaselinenew <= 0;
-            % 
-            % S_baseline = PowerData{tr}(:,tBaseline_extract,ch);
-            % 
-            % m = mean(S_baseline,2); % mean across time (1 value per frequency)
-            % expanded_m = repmat(m,1,size(S_baseline,2));
-            % 
-            % % Power during baseline over time, per channel/trial
-            % S_baseline_norm = mean(S_baseline./expanded_m,1); 
-            % S_baseline_cut = S_baseline_norm(tBaseline_cut); 
-            % 
-            % mu = mean(S_baseline_cut(:));
-            % sigma = std(S_baseline_cut(:));
-            %
-            % % ~~~~~~~~~~~~~~~~ Whole Signal Power ~~~~~~~~~~~~~~~~~~~~
-            %
-            % % Power during whole signal over time, per channel/trial
-            % 
-            % % Try during [-0.5s onward] 
-            % % t_orig = t;
-            % % t = t(t>= -0.5);
-            % % t_idx = t_orig >= -0.5;
-            % 
-            % % trying whole signal
-            % S_power = PowerData{tr}(:,:,ch);
-            % 
-            % m = mean(S_power,2); 
-            % expanded_m = repmat(m,1,size(S_power,2));
-            % S_power_norm = mean(S_power./expanded_m,1); 
-            %
-            % % ~~~~~~~~~~~~~~~~~~~~ Calc Z Score ~~~~~~~~~~~~~~~~~~~~~~
-            %
-            % band_power_zscore{tr} (ch, :) = (S_power_final - mu) / sigma;  % Store in 3D matrix
-
         end
-
-
-
-        % ~~~~~~~~~~~~~~~~~~ Responsiveness Analysis ~~~~~~~~~~~~~~~~~~~~
-
-        % for tr_c = 1:nConTrials
-        %     trialIdx = Trials_C_clean(tr_c);
-        % 
-        %     % Check where z-score > 1 during window [onset time, avg RT]
-        %     meanRT = mean(responseTimes);
-        %     above = band_power_norm{trialIdx}(ch, t >= 0 & t <= meanRT) > 1;
-        % 
-        %     % Find all runs of true values, check if long enough
-        %     d = diff([0, above, 0]); 
-        %     startIdx = find(d == 1);
-        %     endIdx   = find(d == -1) - 1;
-        %     runLengths = endIdx - startIdx + 1;
-        %     if any(runLengths >= minSamples)
-        %         responsiveChannels(ch) = true;
-        %         % break;  % if yes, stop checking other trials for this channel
-        %     end
-        % end
     end
 
 
@@ -639,47 +574,4 @@ function [band_power_mean_max, band_power, power_time_data] = extractPowerFeatur
         band_power_mean_max{tr}(:,2) = max(final_band_power_cut,[],1);   % max over time
 
     end
-    
-   
-    
-    
-    % old
-
-    % power_time_data = ft_freq.time;
-    % 
-    % [nTrials , nChannels, nFreqs, nTime] = size(ft_freq.powspctrm);
-    % band_power_mean_max = cell(1, nTrials); % {trial} [column 1 = mean, column 2 = max]
-    % normalized_band_power = cell(1, nTrials); % {trial} [channels]
-    % 
-    % for tr=1:nTrials
-    %     band_power_mean_max{tr} = zeros(nChannels, 2);
-    % 
-    %     % Extract and squeeze to get [channel x freq x time]
-    %     trial_data = squeeze(ft_freq.powspctrm(tr, :, :, :));  
-    % 
-    %     % Rearrange to [freq x time x channel]
-    %     normalized_band_power{tr} = permute(trial_data, [2, 3, 1]); 
-    % 
-    %     % ~~~~~~~~~~~~~~~~~~~ Save non z-scored features ~~~~~~~~~~~~~~~~~~~        
-    %     tWindow_cut = power_time_data >= 0 & power_time_data <= responseTimes(tr); % stim onset to behavioral response
-    % 
-    %     band_power_whole = normalized_band_power{tr}(:,:,:); % [freq x time x channels]
-    %     band_power_cut = normalized_band_power{tr}(:,tWindow_cut,:); 
-    % 
-    %     % Mean across time (dim 2): result is [freq x 1 x channels]
-    %     m = mean(band_power_whole, 2); % can change to normalized_band_power_cut
-    % 
-    %     % Expand to match original size: [freq x time x channels]
-    %     expanded_m = repmat(m, 1, length(find(tWindow_cut)), 1);
-    % 
-    %     % [time x channels]
-    %     final_band_power_cut = squeeze(mean(band_power_cut./expanded_m,1)); 
-    % 
-    %     % normalized_band_power_cut = normalized_band_power{tr}(:,:,tWindow_cut);
-    % 
-    %     % [1st column - mean, 2nd column - max] over time
-    %     band_power_mean_max{tr}(:,1) = mean(final_band_power_cut,1);  % mean over time
-    %     band_power_mean_max{tr}(:,2) = max(final_band_power_cut,[],1);   % max over time
-    % 
-    % end
 end

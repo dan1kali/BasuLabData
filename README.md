@@ -18,3 +18,13 @@
 - use nBar = 1 to create one bar grouping for aggregated multi-patient data seperated by condition
 - or nBar = length(patients) for bar groupings seperated by patient AND condition
 - Will load from data saved in patient save folders using previous file
+
+
+
+## Other Files
+
+**extractChronuxFeatures5.m**
+- for use with wavelet extraction, updated simplified baselining, and eliminated responsive channel analysis
+
+**extractChronuxFeatures6.m**
+- manual import of power data, manual import of conflict modulated channels
