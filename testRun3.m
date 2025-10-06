@@ -7,33 +7,33 @@
 % 'MG89', 'MG90', 'MG91', 'MG95', ...
 % 'MG96', 'MG99', 'MG102', 'MG104', ...
 % 'MG105', 'MG106', 'MG111', 'MG112',...
-% 'MG116', 'MG117', 'MG118', 'MG120'
+% 'MG116', 'MG117', 'MG118', 'MG120',...
 
 
 % 'UCMC02', 'UCMC03', 'UCMC05', ...
 % 'UCMC06', 'UCMC07', 'UCMC08', 'UCMC09', ...
-% 'UCMC11', 'UCMC13', 'UCMC14'
-
-
+% 'UCMC11', 'UCMC13', 'UCMC14',...
 
 % 'UCMC01', 'UCMC02', 'UCMC03', 'UCMC05', ...
 % 'UCMC06', 'UCMC07', 'UCMC08', 'UCMC09', ...
-% 'UCMC11', 'UCMC13', 'UCMC14', 'UCMC15', 'UCMC17'
+% 'UCMC11', 'UCMC13', 'UCMC14', 'UCMC15', 'UCMC17',...
 
 
 % 'selChans - z-scored power','confChans - z-scored power', ...
-%   'selChans - normalized log power',  'confChans - normalized log power'
-%     'selChans - non z-scored power','confChans - non z-scored power' ...
-%      'selChans - z-scored power - rand','confChans - z-scored power - rand', ...
-%      'selChans - z-scored power - res','confChans - z-scored power - res', ...
+% 'selChans - normalized log power',  'confChans - normalized log power'
+% 'selChans - non z-scored power','confChans - non z-scored power' ...
+% 'selChans - z-scored power - rand','confChans - z-scored power - rand', ...
+% 'selChans - z-scored power - res','confChans - z-scored power - res', ...
 
 %% Plot Patient Data
 tic
 
 n = 40; % minumum # of trials
-subjects = {'UCMC01', 'UCMC02', 'UCMC03', 'UCMC05', ...
+subjects = {...
+'UCMC01', 'UCMC02', 'UCMC03', 'UCMC05', ...
 'UCMC06', 'UCMC07', 'UCMC08', 'UCMC09', ...
-'UCMC11', 'UCMC13', 'UCMC14', 'UCMC15', 'UCMC17'};
+'UCMC11', 'UCMC13', 'UCMC14', 'UCMC15', 'UCMC17',...
+};
 
 config = {'confChans - z-scored power'};
 
@@ -269,14 +269,14 @@ function [y, err,mean_weights,max_weights,sel_chan_number] = SVM(subjects,n,conf
                     max_idx = 2:2:nChannels;
     
                     if i_randsamp == 1 && i == 1
-                        mean_abs_beta = zeros(length(means_idx), 10, 50);
-                        max_abs_beta  = zeros(length(max_idx), 10, 50);
+                        mean_beta = zeros(length(means_idx), 10, 50);
+                        max_beta  = zeros(length(max_idx), 10, 50);
                     end
     
                     % mean_abs_beta (:,i,i_randsamp) = abs_beta(means_idx);
                     % max_abs_beta (:,i,i_randsamp) = abs_beta(max_idx);
-                    mean_abs_beta (:,i,i_randsamp) = beta(means_idx);
-                    max_abs_beta (:,i,i_randsamp) = beta(max_idx);
+                    mean_beta (:,i,i_randsamp) = beta(means_idx);
+                    max_beta (:,i,i_randsamp) = beta(max_idx);
     
                     X_test = [fea_number_con(test_ind(i,:),:);fea_number_in(test_ind(i,:),:)];
                     labels = predict(Mdl,real(X_test)); % made real
@@ -293,8 +293,8 @@ function [y, err,mean_weights,max_weights,sel_chan_number] = SVM(subjects,n,conf
             end
         else
             correct_number = 0;
-            mean_abs_beta = 0;
-            max_abs_beta = 0;
+            mean_beta = 0;
+            max_beta = 0;
 
         end
        
@@ -302,8 +302,8 @@ function [y, err,mean_weights,max_weights,sel_chan_number] = SVM(subjects,n,conf
 
     y = [mean(correct_number(:))];
     err = std(correct_number(:))/sqrt(numel(correct_number)); 
-    mean_weights = mean_abs_beta;
-    max_weights = max_abs_beta;
+    mean_weights = mean_beta;
+    max_weights = max_beta;
 end
 
 function barplot(y, xlabels, err,config)
@@ -337,27 +337,34 @@ function barplot(y, xlabels, err,config)
     end
 
 
-    % Bar Shading
-    baseColors = [0.1   0.4   0.7; 0.8   0.3   0.25]; % set shades, [blue;red]
-    targetColors = [0.5 0.7 1;1   0.5 0.3   ];
-    nShades = 2;
-    % (:,:,1) for blues, (:,:,2) for reds - (shades x RGB x groups)
-    shades = zeros(nShades, 3, size(baseColors,1));
-    for g = 1:size(baseColors,1)
-        for c = 1:3  % R, G, B channels
-            shades(:, c, g) = linspace(baseColors(g, c), targetColors(g, c), nShades);
-        end
+    % % Bar Shading
+    % baseColors = [0.1   0.4   0.7; 0.8   0.3   0.25]; % set shades, [blue;red]
+    % targetColors = [0.5 0.7 1;1   0.5 0.3   ];
+    % nShades = 2;
+    % % (:,:,1) for blues, (:,:,2) for reds - (shades x RGB x groups)
+    % shades = zeros(nShades, 3, size(baseColors,1));
+    % for g = 1:size(baseColors,1)
+    %     for c = 1:3  % R, G, B channels
+    %         shades(:, c, g) = linspace(baseColors(g, c), targetColors(g, c), nShades);
+    %     end
+    % end
+    % 
+    % if nGroups ==4
+    %     for i = 1:nGroups
+    %         if i <= 2
+    %             b(i).FaceColor = shades(i,:,1); % first group blue shades
+    %         else
+    %             b(i).FaceColor = shades(i-2,:,2); % second group red shades
+    %         end
+    %     end
+    % end
+
+    for iGroup = 1:nGroups
+        color = [0.25 + 0.75 * (iGroup / nGroups), 0, 0];  % Dark red to light red gradient
+        b(iGroup).FaceColor = color;
     end
 
-    if nGroups ==4
-        for i = 1:nGroups
-            if i <= 2
-                b(i).FaceColor = shades(i,:,1); % first group blue shades
-            else
-                b(i).FaceColor = shades(i-2,:,2); % second group red shades
-            end
-        end
-    end
+
     
     hold on;
 
@@ -380,6 +387,7 @@ end
 
 function weightsplot(mean_weights,max_weights,sel_chan_number,subject)
 
+    RegionLabels = {'dlPFC', 'dmPFC', 'OFC', 'vlPFC', 'STG', 'MTG', 'ITG', 'dACC', 'AMY', 'HIP'};
     inputPath = fullfile('outputDataChronuxUC', subject);
     filesToLoad = {'ROIbyChannel.mat'};
     
@@ -399,6 +407,27 @@ function weightsplot(mean_weights,max_weights,sel_chan_number,subject)
     %         load(fullfile(inputPath{i_sub}, filesToLoad{i}));
     %     end
     % end
+
+
+    nPatients = length(ROIchannels); % Number of patients
+    nROIs = numel(ROIchannels{1});  % Number of ROIs, inferred from one patient's data (e.g., first cell)
+    channels_per_ROI = zeros(nROIs,nPatients);  % Matrix to store the number of channels for each ROI
+    for i = 1:nPatients
+        for j = 1:nROIs
+            channels_per_ROI(j,i) = numel(ROIchannels{i}{j});  % Store the number of channels for each ROI
+        end
+    end
+    figure;
+    b0 = bar(channels_per_ROI, 'grouped');  % Transpose so that each ROI is a group, and each bar in a group is a patient
+    xlabel('ROI'); ylabel('Number of Channels');
+    xticks(1:nROIs); xticklabels(RegionLabels);
+    title('Number of Channels per ROI for Each Patient');
+    legend(b0, subject, 'Location', 'Best');
+
+    for ig = 1:size(channels_per_ROI,2)
+        color = [0.25 + 0.75 * (ig / size(channels_per_ROI,2)), 0, 0];  % Dark red to light red gradient
+        b0(ig).FaceColor = color;
+    end
 
     mean_abs_beta_flat = reshape(mean_weights, size(mean_weights,1), []);  % now size = [60 x 500]
     max_abs_beta_flat = reshape(max_weights, size(max_weights,1), []);
@@ -438,20 +467,17 @@ function weightsplot(mean_weights,max_weights,sel_chan_number,subject)
             end
         end
     end
-
-    RegionLabels = {'dlPFC', 'dmPFC', 'OFC', 'vlPFC', 'STG', 'MTG', 'ITG', 'dACC', 'AMY', 'HIP'};
-
     
-    beta_mean_plot = mean(beta_mean_plot,2);
-    beta_mean_err_plot = mean(beta_mean_err_plot,2);
-    beta_max_plot = mean(beta_max_plot,2);
-    beta_max_err_plot = mean(beta_max_err_plot,2);
+    % beta_mean_plot = mean(beta_mean_plot,2);
+    % beta_mean_err_plot = mean(beta_mean_err_plot,2);
+    % beta_max_plot = mean(beta_max_plot,2);
+    % beta_max_err_plot = mean(beta_max_err_plot,2);
 
 
     [nBars, nGroups] = size(beta_mean_plot);
 
     figure;
-    tiledlayout(1, 2);
+    tiledlayout(1, 2, 'TileSpacing', 'compact');
     
     meanplot = nexttile;
     b1 = bar(beta_mean_plot, 'grouped','BarWidth', 1);
@@ -467,12 +493,18 @@ function weightsplot(mean_weights,max_weights,sel_chan_number,subject)
     for ier = 1:numel(er)
         er(ier).LineStyle = 'none'; er(ier).CapSize = 5; er(ier).Color = [0 0 0];
     end
+   
+    for ig = 1:nGroups
+        color = [0.25 + 0.75 * (ig / nGroups), 0, 0];  % Dark red to light red gradient
+        b1(ig).FaceColor = color;
+    end
+
     set(gca, 'FontSize', 10);
     xlabel('Region of Interest', 'FontSize', 12);
     ylabel('Absolute Beta Weight', 'FontSize', 12);
-    title('Feature Importance - Mean', 'FontSize', 14);
+    title('Mean Beta Weights', 'FontSize', 14);
     grid on;
-    
+
     maxplot = nexttile;
     b2 = bar(beta_max_plot, 'grouped','BarWidth', 1);
     xlim([0 (nBars+1)]); xticks(1:nBars); xticklabels(RegionLabels);
@@ -481,16 +513,24 @@ function weightsplot(mean_weights,max_weights,sel_chan_number,subject)
     for ier = 1:numel(er)
         er(ier).LineStyle = 'none'; er(ier).CapSize = 5; er(ier).Color = [0 0 0];
     end
+
+    for ig = 1:nGroups
+        color = [0.25 + 0.75 * (ig / nGroups), 0, 0];  % Dark red to light red gradient
+        b2(ig).FaceColor = color;
+    end
+
     xlabel('Region of Interest', 'FontSize', 12);
-    title('Feature Importance - Max', 'FontSize', 14);
-    legend(b2, subject, 'Location', 'northwest');
+    title('Max Beta Weights', 'FontSize', 14);
     grid on;
     
     if nGroups ~= 1
-        legend(b1, subject, 'Location', 'northwest');
-        legend(b2, subject, 'Location', 'northwest');
+        legend(b1, subject, 'Location', 'eastoutside');
     else
     end
 
     linkaxes([meanplot, maxplot], 'y');
+    sgtitle('Feature Contributions Across Regions', 'FontSize', 16);
+
+
+
 end
