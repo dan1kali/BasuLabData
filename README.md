@@ -23,8 +23,11 @@
 
 ## Other Files
 
-**extractChronuxFeatures5.m**
-- for use with wavelet extraction, updated simplified baselining, and eliminated responsive channel analysis
+**extractWaveletFeatures.m**
+- manual import of preprocessed power data + artifact trials
+- implements baselining, conflict modulation analysis, feature extraction
+- (wavelet extraction, updated simplified baselining, and eliminated responsive channel analysis)
 
-**extractChronuxFeatures6.m**
-- manual import of power data, manual import of conflict modulated channels
+**extractFeaturesOnly.m**
+- manual import of already normalized power data
+- feature extraction only
