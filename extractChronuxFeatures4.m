@@ -356,7 +356,7 @@ function conflictModAnalysis(patient)
     minSamples = round(minDuration / dt); % Convert time duration to number of samples
     responsiveChannels = false(nChannels, 1);  % initialize logical array per channel
 
-    band_power_zscore = cell(1, nTrials);
+    band_power_norm = cell(1, nTrials);
     res_band_power_zscore = cell(1, nTrials);
     band_power_mean_max = cell(1, nTrials); % {trial} [column 1 = mean, column 2 = max]
 
@@ -368,51 +368,79 @@ function conflictModAnalysis(patient)
     for ch = 1:nChannels
 
         for tr=1:nTrials                        
+            
+            
             % Calculate mean band power during 500 ms baseline
-
-
             % ~~~~~~~~~~~~~~~~ Extract Baseline Power ~~~~~~~~~~~~~~~~~~~~
             
-            % baseline extract: [-2s, +1s]
-            % baseline cut: [-0.5s, 0]
-
-            % t >= -0.5 & t <= 0;  % toggle to change window that is extracted
-            tBaseline_extract = t >= -2 & t <= 1;
-            tBaselinenew = t(tBaseline_extract);
-            tBaseline_cut = tBaselinenew >= -0.5 & tBaselinenew <= 0;
+            tBaseline_extract = t >= -0.5 & t <= -0.1;
             
             S_baseline = PowerData{tr}(:,tBaseline_extract,ch);
+            S_baseline_meaned = mean(S_baseline,2);
+            S_baseline_meaned_rep = repmat(S_baseline_meaned,1,nTime,1);
+            % S_baseline_final = mean(S_baseline,1); % Average freq (1st dim)
 
-            m = mean(S_baseline,2); % mean across time (1 value per frequency)
-            expanded_m = repmat(m,1,size(S_baseline,2));
+            % mu = mean(S_baseline_final(:));
+            % sigma = std(S_baseline_final(:));
 
-            % Power during baseline over time, per channel/trial
-            S_baseline_norm = mean(S_baseline./expanded_m,1); 
-            S_baseline_cut = S_baseline_norm(tBaseline_cut); 
-
-            mu = mean(S_baseline_cut(:));
-            sigma = std(S_baseline_cut(:));
-    
             % ~~~~~~~~~~~~~~~~ Whole Signal Power ~~~~~~~~~~~~~~~~~~~~
 
             % Power during whole signal over time, per channel/trial
-            
-            % Try during [-0.5s onward] 
-            % t_orig = t;
-            % t = t(t>= -0.5);
-            % t_idx = t_orig >= -0.5;
-            
+            % tSignal_extract = t >= 0.1 & t <= meanRT;
+            % newT = t(tSignal_extract);
 
-            % trying whole signal
             S_power = PowerData{tr}(:,:,ch);
+            S_power_final = mean(S_power,1); 
 
-            m = mean(S_power,2); 
-            expanded_m = repmat(m,1,size(S_power,2));
-            S_power_norm = mean(S_power./expanded_m,1); 
+             % ~~~~~~~~~~~~~~~~~~~~ Calc Normalized Log Power ~~~~~~~~~~~~~~~~~
 
-            % ~~~~~~~~~~~~~~~~~~~~ Calc Z Score ~~~~~~~~~~~~~~~~~~~~~~
-
-            band_power_zscore{tr} (ch, :) = (S_power_norm - mu) / sigma;  % Store in 3D matrix
+            band_power_norm{tr} (ch, :) = log(mean(S_power_final / S_baseline_meaned_rep),1);  % Store in 3D matrix
+            % band_power_norm{tr} (ch, :) = (S_power_final - mu) / sigma;  % Store in 3D matrix
+            
+            % old
+            % % Calculate mean band power during 500 ms baseline
+            % % ~~~~~~~~~~~~~~~~ Extract Baseline Power ~~~~~~~~~~~~~~~~~~~~
+            % 
+            % % baseline extract: [-2s, +1s]
+            % % baseline cut: [-0.5s, 0]
+            % 
+            % % t >= -0.5 & t <= 0;  % toggle to change window that is extracted
+            % tBaseline_extract = t >= -2 & t <= 1;
+            % tBaselinenew = t(tBaseline_extract);
+            % tBaseline_cut = tBaselinenew >= -0.5 & tBaselinenew <= 0;
+            % 
+            % S_baseline = PowerData{tr}(:,tBaseline_extract,ch);
+            % 
+            % m = mean(S_baseline,2); % mean across time (1 value per frequency)
+            % expanded_m = repmat(m,1,size(S_baseline,2));
+            % 
+            % % Power during baseline over time, per channel/trial
+            % S_baseline_norm = mean(S_baseline./expanded_m,1); 
+            % S_baseline_cut = S_baseline_norm(tBaseline_cut); 
+            % 
+            % mu = mean(S_baseline_cut(:));
+            % sigma = std(S_baseline_cut(:));
+            % 
+            % % ~~~~~~~~~~~~~~~~ Whole Signal Power ~~~~~~~~~~~~~~~~~~~~
+            % 
+            % % Power during whole signal over time, per channel/trial
+            % 
+            % % Try during [-0.5s onward] 
+            % % t_orig = t;
+            % % t = t(t>= -0.5);
+            % % t_idx = t_orig >= -0.5;
+            % 
+            % 
+            % % trying whole signal
+            % S_power = PowerData{tr}(:,:,ch);
+            % 
+            % m = mean(S_power,2); 
+            % expanded_m = repmat(m,1,size(S_power,2));
+            % S_power_norm = mean(S_power./expanded_m,1); 
+            % 
+            % % ~~~~~~~~~~~~~~~~~~~~ Calc Z Score ~~~~~~~~~~~~~~~~~~~~~~
+            % 
+            % band_power_zscore{tr} (ch, :) = (S_power_norm - mu) / sigma;  % Store in 3D matrix
 
         end
 
@@ -423,7 +451,7 @@ function conflictModAnalysis(patient)
             
             % Check where z-score > 1 during window [onset time, avg RT]
             meanRT = mean(responseTimes);
-            above = band_power_zscore{trialIdx}(ch, t >= 0 & t <= meanRT) > 1;
+            above = band_power_norm{trialIdx}(ch, t >= 0 & t <= meanRT) > 1;
     
             % Find all runs of true values, check if long enough
             d = diff([0, above, 0]); 
@@ -455,7 +483,7 @@ function conflictModAnalysis(patient)
             tWindow = t >= 0 & t <= responseTimes(tr); 
             % tWindow = t >= 0 & t <= nanmean(responseTimes); % MG91 only
             tWindownew = t(tWindow);
-            S_epoched = band_power_zscore{tr}(:,tWindow);
+            S_epoched = band_power_norm{tr}(:,tWindow);
 
             % [1st column - mean, 2nd column - max]
             band_power_mean_max{tr}(:,1) = mean(S_epoched, 2);  % mean over time
@@ -467,7 +495,7 @@ function conflictModAnalysis(patient)
             % Build response aligned z scores
             rt = responseTimes(tr); % Build response aligned
             t_resp = t - rt;  % re-align t to response at t = 0
-            res_band_power_zscore{tr}(ch,:) = interp1(t_resp, band_power_zscore{tr}(ch,:), resT, 'linear', NaN);   
+            res_band_power_zscore{tr}(ch,:) = interp1(t_resp, band_power_norm{tr}(ch,:), resT, 'linear', NaN);   
 
             % [1st column - mean, 2nd column - max]
             res_band_power_mean_max{tr}(:,1) = mean(S_epoched, 2);  % mean over time
@@ -508,20 +536,20 @@ function conflictModAnalysis(patient)
 
         % Congruent matrices
         for i = 1:nConTrials % Build stimulus aligned
-            stimConMatrix(i, :) = band_power_zscore{Trials_C_clean(i)}(ch, :);
+            stimConMatrix(i, :) = band_power_norm{Trials_C_clean(i)}(ch, :);
 
             rt = responseTimes(Trials_C_clean(i)); % Build response aligned
             t_resp = t - rt; % re-align t to response at t = 0
-            resConMatrix(i, :) = interp1(t_resp, band_power_zscore{Trials_C_clean(i)}(ch,:), resT, 'linear', NaN);
+            resConMatrix(i, :) = interp1(t_resp, band_power_norm{Trials_C_clean(i)}(ch,:), resT, 'linear', NaN);
         end
 
         % Repeat for incongruent
         for i = 1:nInTrials
-            stimInMatrix(i, :) = band_power_zscore{Trials_I_clean(i)}(ch, :);
+            stimInMatrix(i, :) = band_power_norm{Trials_I_clean(i)}(ch, :);
 
             rt = responseTimes(Trials_I_clean(i));
             t_resp = t - rt;
-            resInMatrix(i, :) = interp1(t_resp, band_power_zscore{Trials_I_clean(i)}(ch,:), resT, 'linear', NaN);
+            resInMatrix(i, :) = interp1(t_resp, band_power_norm{Trials_I_clean(i)}(ch,:), resT, 'linear', NaN);
         end
 
         timeWindowStim = find(t >= 0 & t <= meanRT);
