@@ -10,10 +10,6 @@
 % 'MG116', 'MG117', 'MG118', 'MG120',...
 
 
-% 'UCMC02', 'UCMC03', 'UCMC05', ...
-% 'UCMC06', 'UCMC07', 'UCMC08', 'UCMC09', ...
-% 'UCMC11', 'UCMC13', 'UCMC14',...
-
 % 'UCMC01', 'UCMC02', 'UCMC03', 'UCMC05', ...
 % 'UCMC06', 'UCMC07', 'UCMC08', 'UCMC09', ...
 % 'UCMC11', 'UCMC13', 'UCMC14', 'UCMC15', 'UCMC17',...
@@ -24,35 +20,40 @@
 % 'selChans - non z-scored power','confChans - non z-scored power' ...
 % 'selChans - z-scored power - rand','confChans - z-scored power - rand', ...
 % 'selChans - z-scored power - res','confChans - z-scored power - res', ...
+% 'all chans - log power',...
 
 %% Plot Patient Data
 tic
 
-n = 40; % minumum # of trials
 subjects = {...
+'BW42', 'MG51b', 'MG79', 'MG86', ...
+'MG89', 'MG90', 'MG91', 'MG95', ...
+'MG96', 'MG99', 'MG102', 'MG104', ...
+'MG105', 'MG106', 'MG111', 'MG112',...
+'MG116', 'MG117', 'MG118', 'MG120',...
 'UCMC01', 'UCMC02', 'UCMC03', 'UCMC05', ...
 'UCMC06', 'UCMC07', 'UCMC08', 'UCMC09', ...
 'UCMC11', 'UCMC13', 'UCMC14', 'UCMC15', 'UCMC17',...
 };
 
-config = {'confChans - z-scored power'};
+config = {'selChans - normalized power',  'confChans - normalized power',...
+};
 
 nBars = length(subjects);
 % nBars = 1;
 nGroups = length(config);
-
 groupedBars = zeros(nBars,nGroups);
 groupedErr = zeros(nBars,nGroups);
 
 for igroup = 1:nGroups
     % try
     if nBars ==1
-        [y, err,mean_weights,max_weights,sel_chan_number]  = SVM(subjects(:),n,config(igroup));
+        [y, err,mean_weights,max_weights,sel_chan_number]  = SVM(subjects(:),config(igroup));
         groupedBars(:,igroup) = y;
         groupedErr(:,igroup) = err;
     else
         for ibar=1:nBars
-            [y, err,mean_weights,max_weights,sel_chan_number]  = SVM(subjects(ibar),n,config(igroup));
+            [y, err,mean_weights,max_weights,sel_chan_number]  = SVM(subjects(ibar),config(igroup));
             groupedBars(ibar,igroup) = y;
             groupedErr(ibar,igroup) = err;
         end
@@ -62,8 +63,8 @@ for igroup = 1:nGroups
     % end
 end
 
-% barplot(groupedBars, subjects, groupedErr, config)
-weightsplot(mean_weights,max_weights,sel_chan_number,subjects) % only most recent sub and condition
+barplot(groupedBars, subjects, groupedErr, config)
+% weightsplot(mean_weights,max_weights,sel_chan_number,subjects) % only most recent sub and condition
 toc
 
 %% Plot number of channels/min number of Trials
@@ -82,19 +83,22 @@ ylim([0 175]); xlim([0 21]); title('Min Number of Trials per Patient')
 
 %% functions
 
-function [fea_number_con, fea_number_in, m_number_out,sel_chan_number] = concatenateFeatures(subject, m_number, n, config)
+function [fea_number_con, fea_number_in, m_number_out,sel_chan_number,n] = concatenateFeatures(subject, m_number, config)
     
-    inputPath = fullfile('outputDataChronuxUC', subject);
+    inputPath = fullfile('outputPowerData','highGamma',subject);
+    % inputPath = fullfile('outputPowerData_nolog','highGamma',subject);
     
-    filesToLoad = {'selectedChans.mat','conflictModChans.mat', ...
-        'conBandPowerFeatures.mat', 'inBandPowerFeatures.mat', ...
-        'conPowerFeatures.mat','inPowerFeatures.mat', ...
-        'conResPowerFeatures.mat','inResPowerFeatures.mat'};        
+    filesToLoad = { ...
+        'conPowerFeatures.mat','inPowerFeatures.mat',...
+        };        
 
         % 'allPowerFeatures.mat', ...
         % 'ROIbyChannel.mat',...
         % 'conLogPowerFeatures.mat','inLogPowerFeatures.mat', ...
-       
+        % 'conBandPowerFeatures.mat', 'inBandPowerFeatures.mat', ...
+        % 'selectedChans.mat','conflictModChans.mat', ...
+        % 'conResPowerFeatures.mat','inResPowerFeatures.mat',...
+
     for i = 1:length(filesToLoad)
         load(fullfile(inputPath, filesToLoad{i}));
     end
@@ -108,24 +112,24 @@ function [fea_number_con, fea_number_in, m_number_out,sel_chan_number] = concate
 
 
      switch config{1}
-         case 'confChans - z-scored power'
+         case 'confChans - normalized power'
             sel_chan_number = conflictModChans;
             conPower = conPowerFeatures;
             inPower = inPowerFeatures;
-         case 'selChans - z-scored power'
+         case 'selChans - normalized power'
             sel_chan_number = selectedChans;
             conPower = conPowerFeatures;
             inPower = inPowerFeatures;
 
-         % Log power only (non response aligned)
-         case 'confChans - normalized log power'
-            sel_chan_number = conflictModChans;
-            conPower = conPowerFeatures;
-            inPower = inPowerFeatures;
-         case 'selChans - normalized log power'
-            sel_chan_number = selectedChans;
-            conPower = conPowerFeatures;
-            inPower = inPowerFeatures;
+         % % Log power only (non response aligned)
+         % case 'confChans - normalized log power' % only log for UC data
+         %    sel_chan_number = conflictModChans;
+         %    conPower = conPowerFeatures;
+         %    inPower = inPowerFeatures;
+         % case 'selChans - normalized log power'
+         %    sel_chan_number = selectedChans;
+         %    conPower = conPowerFeatures;
+         %    inPower = inPowerFeatures;
 
          % Random labels
          case 'confChans - z-scored power - rand'
@@ -157,35 +161,44 @@ function [fea_number_con, fea_number_in, m_number_out,sel_chan_number] = concate
             conPower = conBandPowerFeatures;
             inPower = inBandPowerFeatures;
          
-
+         % all chans 
+         case 'all chans - log power'
+            sel_chan_number = 'all';
+            conPower = conPowerFeatures;
+            inPower = inPowerFeatures;
+        
          otherwise
             error('Unknown config: %s\n', config{1});
     end
 
-    % sel_chan_number = selectedChans;
-    % conPower = conBandPowerFeatures;
-    % inPower = inBandPowerFeatures;
-
     fea_number_con = [];
     fea_number_in = [];
+
+    if strcmp(sel_chan_number, 'all')
+        sel_chan_number = 1:length(conPowerFeatures{1});
+    end
+
+    n = min(length(conPower), length(inPower));
+
+    % n=40;
 
     if ~isempty(sel_chan_number)
         for i = 1:length(sel_chan_number)
             ch = sel_chan_number(i);
-
             % --- Max Power: Pull from Column 2 ---
-            tent1 = cellfun(@(x) x(ch,2), conPower);  % con max across trials
-            tent2 = cellfun(@(x) x(ch,2), inPower);   % in max across trials
-            fea_number_con(1:n, m_number) = randsample(tent1, n);
-            fea_number_in(1:n, m_number) = randsample(tent2, n);
+            conMaxVals = cellfun(@(x) x(ch,2), conPower);  % con max across trials
+            inMaxVals = cellfun(@(x) x(ch,2), inPower);   % in max across trials
+            % --- Mean Power: Pull from Column 1 ---
+            conMeanVals = cellfun(@(x) x(ch,1), conPower);  % con mean across trials
+            inMeanVals = cellfun(@(x) x(ch,1), inPower);   % in mean across trials
+
+            fea_number_con(1:n, m_number) = randsample(conMaxVals, n);
+            fea_number_in(1:n, m_number) = randsample(inMaxVals, n);
+            m_number = m_number + 1;
+            fea_number_con(1:n, m_number) = randsample(conMeanVals, n);
+            fea_number_in(1:n, m_number) = randsample(inMeanVals, n);
             m_number = m_number + 1;
 
-            % --- Mean Power: Pull from Column 1 ---
-            tent1 = cellfun(@(x) x(ch,1), conPower);  % con mean across trials
-            tent2 = cellfun(@(x) x(ch,1), inPower);   % in mean across trials
-            fea_number_con(1:n, m_number) = randsample(tent1, n);
-            fea_number_in(1:n, m_number) = randsample(tent2, n);
-            m_number = m_number + 1;
         end
 
         m_number_out = m_number;
@@ -231,7 +244,7 @@ nTrialsMin = zeros(length(subjects));
 
 end
 
-function [y, err,mean_weights,max_weights,sel_chan_number] = SVM(subjects,n,config)
+function [y, err,mean_weights,max_weights,sel_chan_number] = SVM(subjects,config)
 
     for i_randsamp = 1:50
     % m_number = 1;
@@ -240,7 +253,7 @@ function [y, err,mean_weights,max_weights,sel_chan_number] = SVM(subjects,n,conf
     
         for i_sub = 1:length(subjects)
             m_number = 1;
-            [fea_con_tmp, fea_in_tmp, m_number_out,sel_chan_number] = concatenateFeatures(subjects{i_sub}, m_number, n,config);
+            [fea_con_tmp, fea_in_tmp, m_number_out,sel_chan_number, n] = concatenateFeatures(subjects{i_sub}, m_number,config);
             fea_number_con = [fea_number_con, fea_con_tmp]; % Concatenate horizontally
             fea_number_in = [fea_number_in, fea_in_tmp];
         end
@@ -248,9 +261,7 @@ function [y, err,mean_weights,max_weights,sel_chan_number] = SVM(subjects,n,conf
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% SVM %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
         n_sample = n;
-    
-
-
+   
         if m_number_out ~= 0
 
             for i_iter = 1
@@ -310,13 +321,14 @@ function barplot(y, xlabels, err,config)
 
     [nBars, nGroups] = size(y);
 
+    figure;
     if size(y,1)==1 % if b only has one grouping
         for i = 1:nGroups
             b(i) = bar(i, y(i), 'BarWidth', 1);
             hold on
         end
         x = 1:nGroups;  % positions match bar indices
-        xlim([0 (nBars+1)]);
+        xlim([0 (nBars+2)]);
         for i = 1:nGroups
             b(i).Labels = b(i).YData;
         end
@@ -388,7 +400,7 @@ end
 function weightsplot(mean_weights,max_weights,sel_chan_number,subject)
 
     RegionLabels = {'dlPFC', 'dmPFC', 'OFC', 'vlPFC', 'STG', 'MTG', 'ITG', 'dACC', 'AMY', 'HIP'};
-    inputPath = fullfile('outputDataChronuxUC', subject);
+    inputPath = fullfile('outputPowerData_nolog','highGamma', subject);
     filesToLoad = {'ROIbyChannel.mat'};
     
     for i = 1:length(filesToLoad)
@@ -399,15 +411,6 @@ function weightsplot(mean_weights,max_weights,sel_chan_number,subject)
             ROIchannels{i_sub} = ROIbyChannel;
         end
     end
-
-    % for i_sub = 1:length(subjects)
-    %     inputPath = fullfile('outputDataWaveletUC', subject);
-    %     filesToLoad = {'ROIbyChannel.mat'};
-    %     for i = 1:length(filesToLoad)
-    %         load(fullfile(inputPath{i_sub}, filesToLoad{i}));
-    %     end
-    % end
-
 
     nPatients = length(ROIchannels); % Number of patients
     nROIs = numel(ROIchannels{1});  % Number of ROIs, inferred from one patient's data (e.g., first cell)
@@ -423,7 +426,6 @@ function weightsplot(mean_weights,max_weights,sel_chan_number,subject)
     xticks(1:nROIs); xticklabels(RegionLabels);
     title('Number of Channels per ROI for Each Patient');
     legend(b0, subject, 'Location', 'Best');
-
     for ig = 1:size(channels_per_ROI,2)
         color = [0.25 + 0.75 * (ig / size(channels_per_ROI,2)), 0, 0];  % Dark red to light red gradient
         b0(ig).FaceColor = color;
@@ -468,10 +470,10 @@ function weightsplot(mean_weights,max_weights,sel_chan_number,subject)
         end
     end
     
-    % beta_mean_plot = mean(beta_mean_plot,2);
-    % beta_mean_err_plot = mean(beta_mean_err_plot,2);
-    % beta_max_plot = mean(beta_max_plot,2);
-    % beta_max_err_plot = mean(beta_max_err_plot,2);
+    beta_mean_plot = mean(beta_mean_plot,2);
+    beta_mean_err_plot = mean(beta_mean_err_plot,2);
+    beta_max_plot = mean(beta_max_plot,2);
+    beta_max_err_plot = mean(beta_max_err_plot,2);
 
 
     [nBars, nGroups] = size(beta_mean_plot);
@@ -530,7 +532,4 @@ function weightsplot(mean_weights,max_weights,sel_chan_number,subject)
 
     linkaxes([meanplot, maxplot], 'y');
     sgtitle('Feature Contributions Across Regions', 'FontSize', 16);
-
-
-
 end
