@@ -6,29 +6,28 @@
 load('regionAccuracies_nolog_hg.mat');    % select for high gamma
 
 % run the plot of interest
-allRegionPlot
-groupRegionPlot
+allRegionPlot(regionAccuracies)
+groupRegionPlot(groupedRegionAccuracies)
 
 % Load the subject accuracies data
 load('subjectAccuracies_nolog_hg.mat');    % select for high gamma
-barplot
+barplot(groupedBars, subjects, groupedErr, config)
 
 %% theta
 % Load the region accuracies data
 load('regionAccuracies_nolog_theta.mat')  % select for theta
 
 % run the plot of interest
-allRegionPlot
-groupRegionPlot
+allRegionPlot(regionAccuracies)
+groupRegionPlot(groupedRegionAccuracies)
 
 % Load the subject accuracies data
 load('subjectAccuracies_nolog_theta.mat')  % select for theta
-barplot
-
+barplot(groupedBars, subjects, groupedErr, config)
 
 
 %% functions
-function allRegionPlot
+function allRegionPlot(regionAccuracies)
 
 nPatients = numel(regionAccuracies);
 nRegions = size(regionAccuracies{1}, 1);
@@ -78,7 +77,7 @@ grid on; box off;
 end
 
 
-function groupRegionPlot
+function groupRegionPlot(groupedRegionAccuracies)
 nPatients = numel(groupedRegionAccuracies);
 nRegions = size(groupedRegionAccuracies{1}, 1);
 RegionLabels = {'dlPFC', 'dmPFC + dACC', 'OFC', 'vlPFC', 'STG + MTG + ITG', 'AMY', 'HIP'};
