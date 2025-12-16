@@ -36,7 +36,7 @@ subjects = {...
 'UCMC11', 'UCMC13', 'UCMC14', 'UCMC15', 'UCMC17',...
 };
 
-config = {'region chans - normalized power'...
+config = {'all chans - normalized power',...
 };
 
 
@@ -65,24 +65,32 @@ for igroup = 1:nGroups
 end
 
 
-% barplot(groupedBars, subjects, groupedErr, config)
-weightsplot(mean_weights,max_weights,sel_chan_number,subjects) % only most recent sub and condition
+barplot(groupedBars, subjects, groupedErr, config)
+% weightsplot(mean_weights,max_weights,sel_chan_number,subjects) % only most recent sub and condition
 toc
 
 
 %%
 
-
+% % initializing
 % for i = 1:33
-%     regionAccuracies{i} = zeros(10,2);
+%     groupedRegionAccuracies{i} = zeros(7,2);
 % end
 
+% % making values the same in certain columns
+% for i = 1:33
+%     groupedRegionAccuracies{i}(1,:) = regionAccuracies{i}(1,:);
+% end
+
+
 for i = 1:33
-    regionAccuracies{i}(10,1) = groupedBars(i);
-    regionAccuracies{i}(10,2) = groupedErr(i);
+    groupedRegionAccuracies{i}(2,1) = groupedBars(i);
+    groupedRegionAccuracies{i}(2,2) = groupedErr(i);
 end
 
-save('regionAccuracies.mat','regionAccuracies')
+save('groupedRegionAccuracies_wavelet_nolog_theta.mat','groupedRegionAccuracies')
+% save('regionAccuracies_wavelet_nolog_theta.mat','regionAccuracies')
+
 
 %% Plot number of channels/min number of Trials
 
@@ -188,9 +196,9 @@ function [fea_number_con, fea_number_in, m_number_out,sel_chan_number,n] = conca
          % all chans 
          case 'region chans - normalized power'
             RegionLabels = {'dlPFC', 'dmPFC', 'OFC', 'vlPFC', 'STG', 'MTG', 'ITG', 'dACC', 'AMY', 'HIP'};
-            ROI = 'dmPFC'; %%%%% change to region you want to graph
-            ROIdx = strcmp(RegionLabels, ROI)==1;
-            ROI_sel_chan_number = ROIbyChannel{ROIdx};
+            ROI = {'dmPFC', 'dACC'}; %%%%% change to region you want to graph
+            ROIdx = ismember(RegionLabels, ROI);
+            ROI_sel_chan_number = [ROIbyChannel{ROIdx}];
             
             sel_chan_number = ROI_sel_chan_number;
             conPower = conPowerFeatures;
@@ -290,13 +298,9 @@ function [y,err,mean_weights,max_weights,sel_chan_number] = SVM(subjects,config)
             m_number = 1;
 
             % inputPath = fullfile('outputDataChronux_zscore',subject);
-            inputPath1 = fullfile('outputPowerData_nolog','highGamma',subjects{i_sub});
+            inputPath1 = fullfile('outputPowerData_nolog','theta',subjects{i_sub});
             % inputPath2 = fullfile('outputPowerData_nolog','theta',subjects{i_sub});
 
-            % [fea_con_tmp, fea_in_tmp, m_number_out,sel_chan_number, n] = concatenateFeatures(m_number,config,inputPath1);
-            % fea_number_con = [fea_number_con, fea_con_tmp]; % Concatenate horizontally
-            % fea_number_in = [fea_number_in, fea_in_tmp];
-            
             [fea_con_tmp, fea_in_tmp, m_number_out,sel_chan_number, n] = concatenateFeatures(m_number,config,inputPath1);
             fea_number_con = [fea_number_con, fea_con_tmp]; % Concatenate horizontally
             fea_number_in = [fea_number_in, fea_in_tmp];
@@ -402,35 +406,10 @@ function barplot(y, xlabels, err,config)
         ylim([00 100]);
     end
 
-
-    % % Bar Shading
-    % baseColors = [0.1   0.4   0.7; 0.8   0.3   0.25]; % set shades, [blue;red]
-    % targetColors = [0.5 0.7 1;1   0.5 0.3   ];
-    % nShades = 2;
-    % % (:,:,1) for blues, (:,:,2) for reds - (shades x RGB x groups)
-    % shades = zeros(nShades, 3, size(baseColors,1));
-    % for g = 1:size(baseColors,1)
-    %     for c = 1:3  % R, G, B channels
-    %         shades(:, c, g) = linspace(baseColors(g, c), targetColors(g, c), nShades);
-    %     end
-    % end
-    % 
-    % if nGroups ==4
-    %     for i = 1:nGroups
-    %         if i <= 2
-    %             b(i).FaceColor = shades(i,:,1); % first group blue shades
-    %         else
-    %             b(i).FaceColor = shades(i-2,:,2); % second group red shades
-    %         end
-    %     end
-    % end
-
     for iGroup = 1:nGroups
         color = [0.25 + 0.75 * (iGroup / nGroups), 0, 0];  % Dark red to light red gradient
         b(iGroup).FaceColor = color;
     end
-
-
     
     hold on;
 
@@ -454,7 +433,8 @@ end
 function weightsplot(mean_weights,max_weights,sel_chan_number,subject)
 
     RegionLabels = {'dlPFC', 'dmPFC', 'OFC', 'vlPFC', 'STG', 'MTG', 'ITG', 'dACC', 'AMY', 'HIP'};
-    inputPath = fullfile('outputDataChronux_ratio', subject);
+    % inputPath = fullfile('outputDataChronux_ratio', subject);
+    inputPath = fullfile('outputPowerData_nolog','theta',subject);
     filesToLoad = {'ROIbyChannel.mat'};
     
     for i = 1:length(filesToLoad)
@@ -587,5 +567,3 @@ function weightsplot(mean_weights,max_weights,sel_chan_number,subject)
     linkaxes([meanplot, maxplot], 'y');
     sgtitle('Feature Contributions Across Regions', 'FontSize', 16);
 end
-
-

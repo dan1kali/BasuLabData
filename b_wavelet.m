@@ -8,12 +8,17 @@
 % 'MG89', 'MG90', 'MG91', 'MG95', ...
 % 'MG96', 'MG99', 'MG102', 'MG104', ...
 % 'MG105', 'MG106', 'MG111', 'MG112', ...
-% 'MG116', 'MG117', 'MG118', 'MG120'
+% 'MG116', 'MG117', 'MG118', 'MG120',...
+
+% 'UCMC01', 'UCMC02', 'UCMC03', 'UCMC05', ...
+% 'UCMC06', 'UCMC07', 'UCMC08', 'UCMC09', ...
+% 'UCMC11', 'UCMC13', 'UCMC14', 'UCMC15', 'UCMC17'
+
 
 % 1) Preprocess for a given patient(s)
 %   - Extracts power data, and generates features from that power data (not
 %   z scores)
-%   - saved in a directory called outputDataChronuxUC
+%   - saved in a directory called outputData
 
 % 2) Then apply conflict modulation analysis
 %   - this creates indices for conflict modulation
@@ -23,19 +28,19 @@
 %% 1) Preprocess
 
 tic
-files = {'UCMC01', 'UCMC02', 'UCMC03', 'UCMC05', ...
-'UCMC06', 'UCMC07', 'UCMC08', 'UCMC09', ...
-'UCMC11', 'UCMC13', 'UCMC14', 'UCMC15', 'UCMC17'};
+files = {...
+'MG51b'...
+};
 
-pool = gcp('nocreate');
-if isempty(pool)
-    parpool(2);
-else
-    disp('Pool already running!');
-end
+% pool = gcp('nocreate');
+% if isempty(pool)
+%     parpool(4);
+% else
+%     disp('Pool already running!');
+% end
 
 
-parfor i = 1:length(files)
+for i = 1:length(files)
     try
         fprintf('\nProcessing patient %s\n', files{i});
         preProcess(files{i});
@@ -49,25 +54,32 @@ toc
 %% 2) Conflict Mod Analysis
 
 tic
-files = {'UCMC01', 'UCMC02', 'UCMC03', 'UCMC05', ...
+files = {...
+'MG51b', 'MG79', 'MG86', ...
+'MG89', 'MG90', 'MG91', 'MG95', ...
+'MG96', 'MG99', 'MG102', 'MG104', ...
+'MG105', 'MG106', 'MG111', 'MG112', ...
+'MG116', 'MG117', 'MG118', 'MG120',...
+'UCMC01', 'UCMC02', 'UCMC03', 'UCMC05', ...
 'UCMC06', 'UCMC07', 'UCMC08', 'UCMC09', ...
-'UCMC11', 'UCMC13', 'UCMC14', 'UCMC15', 'UCMC17'};
+'UCMC11', 'UCMC13', 'UCMC14', 'UCMC15', 'UCMC17',...
+};
 
-pool = gcp('nocreate');
-if isempty(pool)
-    parpool(2);
-else
-    disp('Pool already running!');
-end
+% pool = gcp('nocreate');
+% if isempty(pool)
+%     parpool(2);
+% else
+%     disp('Pool already running!');
+% end
 
-parfor i = 1:length(files)
-    try
+for i = 1:length(files)
+    % try
         fprintf('\nRunning conflictModAnalysis for patient: %s\n', files{i});
         conflictModAnalysis(files{i});
-    catch ME
-        fprintf('**** ERROR processing patient %s: %s *****\n', files{i}, ME.message);
-        continue;
-    end
+    % catch ME
+    %     fprintf('**** ERROR processing patient %s: %s *****\n', files{i}, ME.message);
+    %     continue;
+    % end
 end
 toc
 
@@ -104,56 +116,30 @@ function preProcess(patient)
 
     %%%%%%%%%%%%%%%%% Filtering %%%%%%%%%%%%%%%%%
 
-    % got rid of preprocessing since already built in
+    % Use pre pre-processed data
 
     ft_data3_filt = ft_data3_filt_rs;
-
-    % cfg = [];
-    % cfg.bsfilter = 'yes';                    % bandstop filter (notch)
-    % cfg.bsfreq = [55 65; 115 125; 175 185];  % 60, 120, 180 Hz
-    % cfg.bsfiltord = 4;
-    % cfg.hpfilter = 'yes';                    % high pass filter
-    % cfg.hpfreq = 0.5;
-    % cfg.hpfiltord = 5;
-    % 
-    % ft_data3_filt = ft_preprocessing(cfg,ft_data3);
 
     nTrials = numel(ft_data3_filt.trial);
     nChannels = numel(ft_data3_filt.label);
 
     %%%%%%%%%%%%%%%%% Artifact Trial Rejection %%%%%%%%%%%%%%%%%
-    
-    % Calculate max-min amplitudes
-    amplitudes = zeros(nChannels, nTrials);
-    for tr = 1:nTrials
-        for ch = 1:nChannels
-            % [-1 +2] window needed for artifact rejection
-            timeIdx = ft_data3_filt.time{tr} >= -1 & ft_data3_filt.time{tr} <= 2;
-            signal = ft_data3_filt.trial{tr} (ch, timeIdx); % {trial} [channels x time]
-            amplitudes(ch, tr) = max(signal) - min(signal);
-        end
+
+    % Use pre-prepared column vector of bad trials
+    if exist('TrialDet', 'var')
+        bad_trials = unique([Trials_ZArt; find(isnan(TrialDet(:,12)))]); % convert to column [trials x 1]
+    else
+        bad_trials = Trials_ZArt;
     end
-    
-    % Compute thresholds: mean + 5*std per channel
-    mean_amp = mean(amplitudes, 2);           % [1 x channels]
-    std_amp = std(amplitudes, 0, 2);          % [1 x channels]
-    thresholds = mean_amp + 5 * std_amp;      % [1 x channels] - 5 stdevs
-    
-    % Identify artifact trials per channel
-    artifact_mask = amplitudes > thresholds;      % [trials x channels]
-    % bad_trials = any(artifact_mask, 1) | isnan(TrialDet(:,12))';
-    bad_trials = any(artifact_mask, 1) | TrialDet(:,27)' ~= 1 | isnan(TrialDet(:,12)'); % must = 1 for correct trials
-    bad_trials = bad_trials';                     % convert to column [trials x 1]
-    clean_trials_idx = find(~bad_trials);         % indices of good trials
-        
+    all_trials = 1:nTrials;
+    clean_trials_idx = setdiff(all_trials, bad_trials);  % indices of good trials
+
     % convert rest of data
     ft_data_clean = ft_data3_filt;
     ft_data_clean.trial = ft_data3_filt.trial(clean_trials_idx);
     ft_data_clean.time = ft_data3_filt.time(clean_trials_idx);
-    % ft_data_clean.sampleinfo = ft_data3_filt.sampleinfo(clean_trials_idx,:);
     responseTimes = TrialDet(clean_trials_idx,12);
-    % meanResponseTime = mean(responseTimes);
-    
+
     % New congruent/incongruent indices
     [~, loc_C] = ismember(Trials_C, clean_trials_idx);
     [~, loc_I] = ismember(Trials_I, clean_trials_idx);
@@ -161,8 +147,7 @@ function preProcess(patient)
     Trials_I_clean = loc_I(loc_I > 0);
 
     fprintf('\nRejected %d of %d trials (%.2f%%)\n', ...
-        sum(bad_trials), nTrials, 100 * sum(bad_trials) / nTrials);
-
+        numel(bad_trials), nTrials, 100 * numel(bad_trials) / nTrials);
 
 
     %%%%%%%%%%%%%%%%% Channels for ROI %%%%%%%%%%%%%%%%%
@@ -176,7 +161,7 @@ function preProcess(patient)
 
 
     %%%%%%%%%%%%%%%%% Feature Extraction %%%%%%%%%%%%%%%%%
-    
+
     timeData = ft_data_clean.time;
     selectedChans = ft_data3_filt.label;
     if exist('ch_ictal', 'var')
@@ -188,12 +173,12 @@ function preProcess(patient)
             selectedChans = find(mask1);
         end
     end
-    [PowerFeatures, PowerData, PowerTimeData] = extractPowerFeatures3_1(ft_data_clean.trial, timeData, responseTimes,sr);
+    [PowerFeatures, PowerData, PowerTimeData] = extractPowerFeatures(ft_data_clean, responseTimes);
 
     conBandPowerFeatures = PowerFeatures(Trials_C_clean);
     inBandPowerFeatures  = PowerFeatures(Trials_I_clean);
 
-    outputFolder = fullfile('outputDataChronuxUC', outputName);
+    outputFolder = fullfile('outputDataWavelet_nolog', outputName);
     if ~exist(outputFolder, 'dir')
         mkdir(outputFolder);
     end
@@ -217,7 +202,7 @@ function saveAllFeatures(patient)
 % output per cell: [freq x time × Nchannels]
 % Changed all nChannels, dimensions accordingly
 
-    inputPath = fullfile('outputDataChronuxUC', patient);
+    inputPath = fullfile('outputData', patient);
     outputName = patient;
     
     filesToLoad = {'powerData.mat', 'powerTimeData.mat', ...
@@ -242,7 +227,6 @@ function saveAllFeatures(patient)
         for tr=1:nTrials                        
             % Calculate mean band power during 500 ms baseline
 
-
             % ~~~~~~~~~~~~~~~~ Extract Baseline Power ~~~~~~~~~~~~~~~~~~~~
             
             % baseline extract: [-2s, +1s]
@@ -260,7 +244,7 @@ function saveAllFeatures(patient)
 
             % Power during baseline over time, per channel/trial
             S_baseline_norm = mean(S_baseline./expanded_m,1); 
-            S_baseline_cut = S_baseline_norm(tBaseline_cut); 
+            S_baseline_cut = S_baseline_norm(tBaseline_cut);  %%%%%% final baseline %%%%%
 
             mu = mean(S_baseline_cut(:));
             sigma = std(S_baseline_cut(:));
@@ -274,13 +258,12 @@ function saveAllFeatures(patient)
             % t = t(t>= -0.5);
             % t_idx = t_orig >= -0.5;
             
-
             % trying whole signal
             S_power = PowerData{tr}(:,:,ch);
 
             m = mean(S_power,2); 
             expanded_m = repmat(m,1,size(S_power,2));
-            S_power_norm = mean(S_power./expanded_m,1); 
+            S_power_norm = mean(S_power./expanded_m,1);  %%%%%% final signal %%%%%
 
             % ~~~~~~~~~~~~~~~~~~~~ Calc Z Score ~~~~~~~~~~~~~~~~~~~~~~
 
@@ -319,7 +302,7 @@ function saveAllFeatures(patient)
     allPowerFeatures = band_power_mean_max;
 
         
-    outputFolder = fullfile('outputDataChronuxUC', outputName);
+    outputFolder = fullfile('outputData', outputName);
     if ~exist(outputFolder, 'dir')
         mkdir(outputFolder);
     end
@@ -334,7 +317,7 @@ function conflictModAnalysis(patient)
 % output per cell: [freq x time × Nchannels]
 % Changed all nChannels, dimensions accordingly
 
-    inputPath = fullfile('outputDataChronuxUC', patient);
+    inputPath = fullfile('outputDataWavelet_nolog', patient);
     outputName = patient;
     
     filesToLoad = {'powerData.mat', 'powerTimeData.mat', ...
@@ -348,11 +331,12 @@ function conflictModAnalysis(patient)
     nInTrials = length(Trials_I_clean);
     nChannels = size(PowerData{1}, 3);
     nTrials = length(PowerData);
+    nTime =  size(PowerData{1}, 2);
     meanRT = mean(responseTimes);
 
     minDuration = 0.15; % duration in s to see if congruent z score > 1 for
-    % dt = mean(diff(PowerTimeData{1} (1,:)));   % assume uniform sampling
-    dt = mean(diff(PowerTimeData{1} (1,:)));   % assume uniform sampling
+    % dt = mean(diff(PowerTimeData(1,:)));   % assume uniform sampling
+    dt = mean(diff(PowerTimeData(1,:)));   % assume uniform sampling
     minSamples = round(minDuration / dt); % Convert time duration to number of samples
     responsiveChannels = false(nChannels, 1);  % initialize logical array per channel
 
@@ -360,7 +344,24 @@ function conflictModAnalysis(patient)
     res_band_power_zscore = cell(1, nTrials);
     band_power_mean_max = cell(1, nTrials); % {trial} [column 1 = mean, column 2 = max]
 
-    t = PowerTimeData{1}(1,:); % assume all times uniform
+    t = PowerTimeData(1,:); % assume all times uniform
+
+
+
+
+    % %%% ----- ANI BASELINE ------
+    % [nTrials , nChannels, nFreqs, nTime]
+    % power_time_data = ft_freq.time;
+    % BLtimeIdx = find(power_time_data <= -0.1 & power_time_data >= -0.5);
+    % TrialtimeIdx = find(power_time_data <= 1.4 & power_time_data >= 0.1);
+    % 
+    % PSD_baseline=mean(ft_freq.powspctrm(:,:,:,BLtimeIdx),4);
+    % PSD_trial=ft_freq.powspctrm(:,:,:,TrialtimeIdx);
+    % 
+    % PSD_norm = mean(PSD_trial./repmat(PSD_baseline,1,1,1,numel(TrialtimeIdx)),3); % divide by mean BL, avg freq bin
+    % PSD_norm = squeeze(log(PSD_norm)); % trl x chan x time
+    % %%% ------------------------
+
 
 
     %%%%%%%%%%%%%%%%% Electrode Responsiveness Analysis %%%%%%%%%%%%%%%%%
@@ -368,8 +369,6 @@ function conflictModAnalysis(patient)
     for ch = 1:nChannels
 
         for tr=1:nTrials                        
-            
-            
             % Calculate mean band power during 500 ms baseline
             % ~~~~~~~~~~~~~~~~ Extract Baseline Power ~~~~~~~~~~~~~~~~~~~~
             
@@ -394,18 +393,18 @@ function conflictModAnalysis(patient)
 
              % ~~~~~~~~~~~~~~~~~~~~ Calc Normalized Log Power ~~~~~~~~~~~~~~~~~
 
-            band_power_norm{tr} (ch, :) = log(mean(S_power_final / S_baseline_meaned_rep),1);  % Store in 3D matrix
+            band_power_norm{tr} (ch, :) = (mean(S_power ./ S_baseline_meaned_rep,1));  % Store in 3D matrix
+            % band_power_norm{tr} (ch, :) = log(mean(S_power ./ S_baseline_meaned_rep,1));  % Store in 3D matrix
             % band_power_norm{tr} (ch, :) = (S_power_final - mu) / sigma;  % Store in 3D matrix
-            
+
+
             % old
-            % % Calculate mean band power during 500 ms baseline
             % % ~~~~~~~~~~~~~~~~ Extract Baseline Power ~~~~~~~~~~~~~~~~~~~~
             % 
             % % baseline extract: [-2s, +1s]
             % % baseline cut: [-0.5s, 0]
             % 
-            % % t >= -0.5 & t <= 0;  % toggle to change window that is extracted
-            % tBaseline_extract = t >= -2 & t <= 1;
+            % tBaseline_extract = t >= -2 & t <= 1; % toggle to change window that is extracted
             % tBaselinenew = t(tBaseline_extract);
             % tBaseline_cut = tBaselinenew >= -0.5 & tBaselinenew <= 0;
             % 
@@ -420,9 +419,9 @@ function conflictModAnalysis(patient)
             % 
             % mu = mean(S_baseline_cut(:));
             % sigma = std(S_baseline_cut(:));
-            % 
+            %
             % % ~~~~~~~~~~~~~~~~ Whole Signal Power ~~~~~~~~~~~~~~~~~~~~
-            % 
+            %
             % % Power during whole signal over time, per channel/trial
             % 
             % % Try during [-0.5s onward] 
@@ -430,44 +429,45 @@ function conflictModAnalysis(patient)
             % % t = t(t>= -0.5);
             % % t_idx = t_orig >= -0.5;
             % 
-            % 
             % % trying whole signal
             % S_power = PowerData{tr}(:,:,ch);
             % 
             % m = mean(S_power,2); 
             % expanded_m = repmat(m,1,size(S_power,2));
             % S_power_norm = mean(S_power./expanded_m,1); 
-            % 
+            %
             % % ~~~~~~~~~~~~~~~~~~~~ Calc Z Score ~~~~~~~~~~~~~~~~~~~~~~
-            % 
-            % band_power_zscore{tr} (ch, :) = (S_power_norm - mu) / sigma;  % Store in 3D matrix
+            %
+            % band_power_zscore{tr} (ch, :) = (S_power_final - mu) / sigma;  % Store in 3D matrix
 
         end
+
+
 
         % ~~~~~~~~~~~~~~~~~~ Responsiveness Analysis ~~~~~~~~~~~~~~~~~~~~
 
-        for tr_c = 1:nConTrials
-            trialIdx = Trials_C_clean(tr_c);
-            
-            % Check where z-score > 1 during window [onset time, avg RT]
-            meanRT = mean(responseTimes);
-            above = band_power_norm{trialIdx}(ch, t >= 0 & t <= meanRT) > 1;
-    
-            % Find all runs of true values, check if long enough
-            d = diff([0, above, 0]); 
-            startIdx = find(d == 1);
-            endIdx   = find(d == -1) - 1;
-            runLengths = endIdx - startIdx + 1;
-            if any(runLengths >= minSamples)
-                responsiveChannels(ch) = true;
-                % break;  % if yes, stop checking other trials for this channel
-            end
-        end
+        % for tr_c = 1:nConTrials
+        %     trialIdx = Trials_C_clean(tr_c);
+        % 
+        %     % Check where z-score > 1 during window [onset time, avg RT]
+        %     meanRT = mean(responseTimes);
+        %     above = band_power_norm{trialIdx}(ch, t >= 0 & t <= meanRT) > 1;
+        % 
+        %     % Find all runs of true values, check if long enough
+        %     d = diff([0, above, 0]); 
+        %     startIdx = find(d == 1);
+        %     endIdx   = find(d == -1) - 1;
+        %     runLengths = endIdx - startIdx + 1;
+        %     if any(runLengths >= minSamples)
+        %         responsiveChannels(ch) = true;
+        %         % break;  % if yes, stop checking other trials for this channel
+        %     end
+        % end
     end
 
 
 
-    %%%%%%%%%%%%%%%%%%%%% Feature Extraction From Z scores %%%%%%%%%%%%%%%% 
+    %%%%%%%%%%%%%%%%%%%%% Feature Extraction From baselined power %%%%%%%%%%%%%%%% 
     
     resT = t - meanRT;
     for tr=1:nTrials
@@ -480,27 +480,28 @@ function conflictModAnalysis(patient)
             % ~~~~~~~~~~~~~~~~~~~~~~ Save features ~~~~~~~~~~~~~~~~~~~~~~
             
             % Cut time window: only look at stimulus onset to behavioral response
-            tWindow = t >= 0 & t <= responseTimes(tr); 
-            % tWindow = t >= 0 & t <= nanmean(responseTimes); % MG91 only
+            tWindow = t >= 0.1 & t <= responseTimes(tr); 
             tWindownew = t(tWindow);
-            S_epoched = band_power_norm{tr}(:,tWindow);
+            % S_epoched = band_power_norm{tr}(:,tWindow);
+            S_epoched = band_power_norm{tr}(:,:);
 
             % [1st column - mean, 2nd column - max]
             band_power_mean_max{tr}(:,1) = mean(S_epoched, 2);  % mean over time
             band_power_mean_max{tr}(:,2) = max(S_epoched, [],2);   % max over time
-            band_power_mean_max{tr}(:,3) = trapz(tWindownew, S_epoched,2);
+            % band_power_mean_max{tr}(:,3) = trapz(tWindownew, S_epoched,2);
 
 
-            % ~~~~~~~~~~~~~ Save response aligned features ~~~~~~~~~~~~~~~~~~
-            % Build response aligned z scores
-            rt = responseTimes(tr); % Build response aligned
-            t_resp = t - rt;  % re-align t to response at t = 0
-            res_band_power_zscore{tr}(ch,:) = interp1(t_resp, band_power_norm{tr}(ch,:), resT, 'linear', NaN);   
-
-            % [1st column - mean, 2nd column - max]
-            res_band_power_mean_max{tr}(:,1) = mean(S_epoched, 2);  % mean over time
-            res_band_power_mean_max{tr}(:,2) = max(S_epoched, [],2);   % max over time
-            res_band_power_mean_max{tr}(:,3) = trapz(tWindownew, S_epoched,2);
+            % % ~~~~~~~~~~~~~ Save response aligned features ~~~~~~~~~~~~~~~~~~
+            % % Build response aligned z scores
+            % rt = responseTimes(tr); % Build response aligned
+            % t_resp = t - rt;  % re-align t to response at t = 0
+            % res_band_power_zscore{tr}(ch,:) = interp1(t_resp, band_power_norm{tr}(ch,:), resT, 'linear', NaN);   
+            % S_res_epoched = res_band_power_zscore{tr}(:,:);
+            % 
+            % % [1st column - mean, 2nd column - max]
+            % res_band_power_mean_max{tr}(:,1) = mean(S_res_epoched, 2);  % mean over time
+            % res_band_power_mean_max{tr}(:,2) = max(S_res_epoched, [],2);   % max over time
+            % % res_band_power_mean_max{tr}(:,3) = trapz(tWindownew, S_epoched,2);
 
         end
     end
@@ -590,7 +591,7 @@ function conflictModAnalysis(patient)
     fprintf('\n%d/%d channels (%.2f%%) are conflict modulated.\nWith alpha = %.2f, # permutations = %d\n', ...
     sum(finalChannelList), nChannels, 100 * sum(finalChannelList) / nChannels, alpha, nPermutations);
 
-    outputFolder = fullfile('outputDataChronuxUC', outputName);
+    outputFolder = fullfile('outputDataWavelet_nolog', outputName);
     if ~exist(outputFolder, 'dir')
         mkdir(outputFolder);
     end
@@ -603,102 +604,98 @@ function conflictModAnalysis(patient)
     save(fullfile(outputFolder, 'inResPowerFeatures.mat'), 'inResPowerFeatures');
 end
 
-function [band_power_mean_max, normalized_band_power, power_time_data] = extractPowerFeatures3_1(data, timeData, responseTimes,sr)
+
+function [band_power_mean_max, band_power, power_time_data] = extractPowerFeatures(data, responseTimes)
     
-% each trial of time x channels fed into spectrogram.
-% output per cell: [freq x time × Nchannels]
+    % Use wavelet decomp
 
-    addpath(genpath('functions'))
+    % Calculate PSD 
+    cfg = [];
+    cfg.output = 'pow';
+    cfg.keeptrials = 'yes';
+    cfg.method = 'wavelet';
+    cfg.pad='nextpow2'; %pads data to match desired freq resolution (https://www.fieldtriptoolbox.org/faq/spectral/freqanalysis_paddinginsufficient/)
+    cfg.foi = [70:110]; %1-110Hz w/1Hz steps
+    cfg.toi = [-1:(1/512*4):2]; % -1s to +2s w.r.t. image onset, w/7.8ms steps. If you leave sampling rate at 1000Hz, would just do [-1:0.01:2] instead. 
+    
+    % 4D Matrix: [trials × channels × frequencies × time]
+    ft_freq = ft_freqanalysis(cfg,data);
 
-    nTrials = length(data);
-    nChannels = size(data{1}, 1);
-            
+
+    % smoothdata( ,'dimension',4,'movemean',26); % similar to 200 ms moving window smooth
+    % apply to ft_freq.powspctrm
+    % do it after log
+
+    power_time_data = ft_freq.time;
+    meanRT = mean(responseTimes);
+    [nTrials , nChannels, nFreqs, nTime] = size(ft_freq.powspctrm);
     band_power_mean_max = cell(1, nTrials); % {trial} [column 1 = mean, column 2 = max]
-    power_time_data = cell(1, nTrials);
-    normalized_band_power = cell(1, nTrials); % {trial} [channels]
+    band_power = cell(1, nTrials); % {trial} [channels]
 
     for tr=1:nTrials
         band_power_mean_max{tr} = zeros(nChannels, 2);
-            
-        %%%%%%%%%%%%%%%%% Band Power Calculation %%%%%%%%%%%%%%%%%
-
-        params = struct();
-        % params.fpass = [70 110];  % frequency band you want to analyze
-
-        [y,t,S,~]=computeNormalizedFreqMag(data{tr}',sr,params);
         
-        % ~~~~~~~~~~~~ Save time-frequency power data ~~~~~~~~~~~~~~
+        % Extract and squeeze to get [channel x freq x time]
+        trial_data = squeeze(ft_freq.powspctrm(tr, :, :, :));  
         
-        % Transpose each page: (time x freq --> freq x time) x channels
-        % Save all band power in frequency x time
-        normalized_band_power {tr} = pagetranspose(S);
-        t = t + timeData{1}(1);  % shift t
-        power_time_data {tr} = t;
+        % Rearrange to [freq x time x channel]
+        band_power{tr} = permute(trial_data, [2, 3, 1]); 
 
-        % ~~~~~~~~~~~~~~~~~~~ Save non z-scored features ~~~~~~~~~~~~~~~~~~~
+        % ~~~~~~~~~~~~~~~~~~~ Save non z-scored features ~~~~~~~~~~~~~~~~~~~        
+        tWindow_cut = power_time_data >= 0.1 & power_time_data <= meanRT; % stim onset to behavioral response
+
+        % Average across frequencies
+        band_power_cut = band_power{tr}(:,tWindow_cut,:); 
+
+        % Mean across time (dim 2): result is [freq x 1 x channels]
+        final_band_power_cut = squeeze(mean(band_power_cut, 1)); % can change to normalized_band_power_cut
         
-        %%% (method 1) extract only part of signal 
-        
-        tWindow_cut = t >= 0 & t <= responseTimes(tr); % stim onset to behavioral response
-        % tWindow_cut = t >= 0 & t <= nanmean(responseTimes); % for MG91 only
-        S_extract_epoched = S(tWindow_cut,:,:); 
-        m = mean(S_extract_epoched,1); % mean across time (1 value per frequency)
-        expanded_m = repmat(m,size(S_extract_epoched,1),1,1);
-
-        % Power over time, per channel/trial
-        % [time, freq, chan] --> (time, chan)
-        S_norm_epoched = squeeze(mean(S_extract_epoched./expanded_m,2)); 
-
-
-        %%% (method 2) cut after extracting whole signal
-        S_cut_epoched = y(tWindow_cut,:);
-
-
-        % [1st column - mean, 2nd column - max]
-        % band_power_mean_max{tr}(:,1,:) = mean(S_norm_epoched,1);  % mean over time
-        % band_power_mean_max{tr}(:,2,:) = max(S_norm_epoched,[],1);   % max over time
-        band_power_mean_max{tr}(:,1,:) = mean(S_cut_epoched,1);  % mean over time
-        band_power_mean_max{tr}(:,2,:) = max(S_cut_epoched,[],1);   % max over time
+        % [1st column - mean, 2nd column - max] over time
+        band_power_mean_max{tr}(:,1) = mean(final_band_power_cut,1);  % mean over time
+        band_power_mean_max{tr}(:,2) = max(final_band_power_cut,[],1);   % max over time
 
     end
-end
+    
+   
+    
+    
+    % old
 
-function [y,t,S,f]=computeNormalizedFreqMag(x,Fs,params)
-
-if(nargin < 4)
-    params.Fs = Fs;
-end
-if(~isfield(params,'Fs'))
-    params.Fs = Fs;
-end
-if(~isfield(params,'fpass'))
-    params.fpass = [70 120];
-end
-if(~isfield(params,'tapers'))
-    params.tapers = [5 7];
-end
-if(~isfield(params,'movingwin'))
-    params.movingwin = [0.2 0.01]; % [window size, step size]
-end
-if ~isfield(params,'norm_option')
-    params.norm_option='mean';
-end
-if ~isfield(params,'err')
-    params.err=[1 0.05];
-end
-
-[S,t,f,~] = mtspecgramc(x,params.movingwin,params); % Chronux function
-
-if strcmp(params.norm_option,'median')
-    m=median(S,1);
-elseif strcmp(params.norm_option,'mean')
-    m=mean(S,1); % collapses across time - 1 mean for each frequency bin
-end
-
-y=mean(S./repmat(m,size(S,1),1),2); % mean power for each trial and channel
-
-% repmat is a vector of mean of S over time the size of frequency
-% Divide by mean across time (scaling)  --> % of average power across time
-% y=mean(S,2); % mean power for each trial and channel
-
+    % power_time_data = ft_freq.time;
+    % 
+    % [nTrials , nChannels, nFreqs, nTime] = size(ft_freq.powspctrm);
+    % band_power_mean_max = cell(1, nTrials); % {trial} [column 1 = mean, column 2 = max]
+    % normalized_band_power = cell(1, nTrials); % {trial} [channels]
+    % 
+    % for tr=1:nTrials
+    %     band_power_mean_max{tr} = zeros(nChannels, 2);
+    % 
+    %     % Extract and squeeze to get [channel x freq x time]
+    %     trial_data = squeeze(ft_freq.powspctrm(tr, :, :, :));  
+    % 
+    %     % Rearrange to [freq x time x channel]
+    %     normalized_band_power{tr} = permute(trial_data, [2, 3, 1]); 
+    % 
+    %     % ~~~~~~~~~~~~~~~~~~~ Save non z-scored features ~~~~~~~~~~~~~~~~~~~        
+    %     tWindow_cut = power_time_data >= 0 & power_time_data <= responseTimes(tr); % stim onset to behavioral response
+    % 
+    %     band_power_whole = normalized_band_power{tr}(:,:,:); % [freq x time x channels]
+    %     band_power_cut = normalized_band_power{tr}(:,tWindow_cut,:); 
+    % 
+    %     % Mean across time (dim 2): result is [freq x 1 x channels]
+    %     m = mean(band_power_whole, 2); % can change to normalized_band_power_cut
+    % 
+    %     % Expand to match original size: [freq x time x channels]
+    %     expanded_m = repmat(m, 1, length(find(tWindow_cut)), 1);
+    % 
+    %     % [time x channels]
+    %     final_band_power_cut = squeeze(mean(band_power_cut./expanded_m,1)); 
+    % 
+    %     % normalized_band_power_cut = normalized_band_power{tr}(:,:,tWindow_cut);
+    % 
+    %     % [1st column - mean, 2nd column - max] over time
+    %     band_power_mean_max{tr}(:,1) = mean(final_band_power_cut,1);  % mean over time
+    %     band_power_mean_max{tr}(:,2) = max(final_band_power_cut,[],1);   % max over time
+    % 
+    % end
 end
