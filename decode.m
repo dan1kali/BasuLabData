@@ -298,7 +298,7 @@ function [y,err,mean_weights,max_weights,sel_chan_number] = SVM(subjects,config)
             m_number = 1;
 
             % inputPath = fullfile('outputDataChronux_zscore',subject);
-            inputPath1 = fullfile('outputPowerData_nolog','theta',subjects{i_sub});
+            inputPath1 = fullfile('c_outputPowerData_nolog','highGamma',subjects{i_sub});
             % inputPath2 = fullfile('outputPowerData_nolog','theta',subjects{i_sub});
 
             [fea_con_tmp, fea_in_tmp, m_number_out,sel_chan_number, n] = concatenateFeatures(m_number,config,inputPath1);
