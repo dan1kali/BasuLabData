@@ -18,22 +18,23 @@
 - use folder called "patientPowerData"
 
 ### 2. <u>Generate Intermediate Data</u>
-**a) Generate power data, features, and all other necessary indices: Use extractChronuxFeatures4.m**
-- Use preprocessing function to generate powerdata + other files (non z-scored features, time, C/I trials, etc)
-- Use conflictModAnalysis function to generate conflict modulated channels + z scored power data
+**a) Generate power data, features, and other necessary indices: a_chronux.m**
+- Preprocess EEG, generate powerdata with Chronux + other files (non z-scored features, time, C/I trials, etc)  with preprocess function
+- Generate conflict modulated channels + z scored power data with conflictModAnalysis function
 - All files will save in auto-generated outputData folders for each patient
 
-**b) Process pre-existing power data and extract features - extractWaveletFeatures.m**
-- Manual import of preprocessed power data + artifact trials
-- Implements baselining, conflict modulation analysis, feature extraction
+**b) Generate power using wavelet using pre-processed data, extract features: b_wavelet.m**
+- Manual import of preprocessed EEG + artifact trials
+- Generate power data using wavelet with preprocess function
+- Implements baselining, conflict modulation analysis, feature extraction with conflictModAnalysis function
 - (Wavelet extraction, updated simplified baselining, and eliminated responsive channel analysis)
 
-**c) Extract features only - extractFeaturesOnly.m**
-- Manual import of already normalized power data
+**c) Extract features only: c_features.m**
+- Manual import of normalized power data
 - Feature extraction only
 
 ### 3. <u>Apply decoding and plot</u>
-**Use testRun4.m**
+**decode.m**
 - Update patient list and group conditions
 - Use nBar = 1 to create one bar grouping for aggregated multi-patient data seperated by condition
 - Or nBar = length(patients) for bar groupings seperated by patient AND condition
