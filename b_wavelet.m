@@ -110,7 +110,7 @@ toc
 %% functions
 
 function preProcess(patient)
-    load(fullfile('patientData', patient));
+    load(fullfile('ab_inputEEGData', patient));
     outputName = patient;
     sr = 512;
 
@@ -178,7 +178,7 @@ function preProcess(patient)
     conBandPowerFeatures = PowerFeatures(Trials_C_clean);
     inBandPowerFeatures  = PowerFeatures(Trials_I_clean);
 
-    outputFolder = fullfile('outputDataWavelet_nolog', outputName);
+    outputFolder = fullfile('b_outputDataWavelet_nolog', outputName);
     if ~exist(outputFolder, 'dir')
         mkdir(outputFolder);
     end
