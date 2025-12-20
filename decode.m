@@ -71,7 +71,11 @@ for igroup = 1:nGroups
     % end
 end
 
-%% plot
+
+% save('yourvariablename.mat','groupedBars','groupedErr','shapVals','meanBetas','maxBetas')
+
+%% accuracies plot
+% load('yourvariablename.mat')
 
 barplot(groupedBars, subject, groupedErr, config)
 % weightsplot(meanBetas,maxBetas,sel_chan_number,subjects) % only most recent sub and condition
