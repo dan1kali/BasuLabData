@@ -23,8 +23,7 @@
 
 
 %% Plot Patient Data
-tic
-  
+
 subjects = {... 
 'BW42', 'MG51b', 'MG79', 'MG86', ...
 'MG89', 'MG90', 'MG91', 'MG95', ...
@@ -36,7 +35,7 @@ subjects = {...
 'UCMC11', 'UCMC13', 'UCMC14', 'UCMC15', 'UCMC17',...
 };
 
-config = {'all chans - normalized power',...
+config = {'allChans - normalized power',...
 };
 
 
@@ -45,18 +44,26 @@ nBars = length(subjects);
 nGroups = length(config);
 groupedBars = zeros(nBars,nGroups);
 groupedErr = zeros(nBars,nGroups);
+shapVals = cell(nBars,nGroups);
+meanBetas = cell(nBars,nGroups);
+maxBetas = cell(nBars,nGroups);
 
 for igroup = 1:nGroups
     % try
     if nBars ==1
-        [y, err,mean_weights,max_weights,sel_chan_number]  = SVM(subjects(:),config(igroup));
+        [y, err,shap,mean_weights,max_weights,sel_chan_number]  = SVM(subjects(:),config(igroup));
         groupedBars(:,igroup) = y;
         groupedErr(:,igroup) = err;
+        meanBetas = mean_weights;
+        maxBetas = max_weights;
     else
         for ibar=1:nBars
-            [y, err,mean_weights,max_weights,sel_chan_number]  = SVM(subjects(ibar),config(igroup));
+            [y, err,shap,mean_weights,max_weights,sel_chan_number]  = SVM(subjects(ibar),config(igroup));
             groupedBars(ibar,igroup) = y; % 33 patients x 1, each 1 value is mean of 500 values
             groupedErr(ibar,igroup) = err;
+            shapVals{ibar,igroup} = shap;
+            meanBetas{ibar,igroup} = mean_weights;
+            maxBetas{ibar,igroup} = max_weights;
         end
     end
     % catch ME
@@ -64,11 +71,10 @@ for igroup = 1:nGroups
     % end
 end
 
+%% plot
 
-barplot(groupedBars, subjects, groupedErr, config)
-% weightsplot(mean_weights,max_weights,sel_chan_number,subjects) % only most recent sub and condition
-toc
-
+barplot(groupedBars, subject, groupedErr, config)
+% weightsplot(meanBetas,maxBetas,sel_chan_number,subjects) % only most recent sub and condition
 
 %%
 
@@ -188,7 +194,7 @@ function [fea_number_con, fea_number_in, m_number_out,sel_chan_number,n] = conca
             inPower = inBandPowerFeatures;
          
          % all chans 
-         case 'all chans - normalized power'
+         case 'allChans - normalized power'
             sel_chan_number = 'all';
             conPower = conPowerFeatures;
             inPower = inPowerFeatures;
@@ -196,7 +202,7 @@ function [fea_number_con, fea_number_in, m_number_out,sel_chan_number,n] = conca
          % all chans 
          case 'region chans - normalized power'
             RegionLabels = {'dlPFC', 'dmPFC', 'OFC', 'vlPFC', 'STG', 'MTG', 'ITG', 'dACC', 'AMY', 'HIP'};
-            ROI = {'dmPFC', 'dACC'}; %%%%% change to region you want to graph
+            ROI = {'dlPFC', 'dmPFC', 'OFC', 'vlPFC', 'STG', 'MTG', 'ITG', 'dACC', 'AMY', 'HIP'}; %%%%% change to region you want to graph
             ROIdx = ismember(RegionLabels, ROI);
             ROI_sel_chan_number = [ROIbyChannel{ROIdx}];
             
@@ -226,8 +232,12 @@ function [fea_number_con, fea_number_in, m_number_out,sel_chan_number,n] = conca
     % n=40;
 
     if ~isempty(sel_chan_number)
+
+
         for i = 1:length(sel_chan_number)
-            ch = sel_chan_number(i);
+            %%%%%%%%%%%%%% move randsample outside the loop %%%%%%%%%%%%%%%
+             
+            ch = sel_chan_number(i); 
             % --- Max Power: Pull from Column 2 ---
             conMaxVals = cellfun(@(x) x(ch,2), conPower);  % con max across trials
             inMaxVals = cellfun(@(x) x(ch,2), inPower);   % in max across trials
@@ -287,7 +297,7 @@ nTrialsMin = zeros(length(subjects));
 
 end
 
-function [y,err,mean_weights,max_weights,sel_chan_number] = SVM(subjects,config)
+function [y,err,shap,mean_weights,max_weights,sel_chan_number] = SVM(subjects,config)
 
     for i_randsamp = 1:50
     % m_number = 1;
@@ -298,7 +308,7 @@ function [y,err,mean_weights,max_weights,sel_chan_number] = SVM(subjects,config)
             m_number = 1;
 
             % inputPath = fullfile('outputDataChronux_zscore',subject);
-            inputPath1 = fullfile('c_outputPowerData_nolog','highGamma',subjects{i_sub});
+            inputPath1 = fullfile('c_outputPowerData_log','highGamma',subjects{i_sub});
             % inputPath2 = fullfile('outputPowerData_nolog','theta',subjects{i_sub});
 
             [fea_con_tmp, fea_in_tmp, m_number_out,sel_chan_number, n] = concatenateFeatures(m_number,config,inputPath1);
@@ -318,44 +328,123 @@ function [y,err,mean_weights,max_weights,sel_chan_number] = SVM(subjects,config)
    
         if m_number_out ~= 0
 
-            for i_iter = 1
-                % Number
-                [train_ind, test_ind,n_test] = generateCrossValInd(n_sample); % n_sample = 52;
-                for i = 1:10 % 10-fold 
-                    X_train = [fea_number_con(train_ind(i,:),:);fea_number_in(train_ind(i,:),:)]; % made real
-                    Y_train = [zeros(n_sample-n_test,1);ones(n_sample-n_test,1)];
-                    Mdl = fitcsvm(real(X_train),Y_train,'Standardize',true,'KernelFunction','linear');
-        
-                    beta = Mdl.Beta;
-                    abs_beta = abs(beta);
-    
-                    nChannels = floor(length(abs_beta));
-                    means_idx = 1:2:nChannels;
-                    max_idx = 2:2:nChannels;
-    
-                    if i_randsamp == 1 && i == 1
-                        mean_beta = zeros(length(means_idx), 10, 50);
-                        max_beta  = zeros(length(max_idx), 10, 50);
-                    end
-    
-                    % mean_abs_beta (:,i,i_randsamp) = abs_beta(means_idx);
-                    % max_abs_beta (:,i,i_randsamp) = abs_beta(max_idx);
-                    mean_beta (:,i,i_randsamp) = beta(means_idx);
-                    max_beta (:,i,i_randsamp) = beta(max_idx);
-    
-                    X_test = [fea_number_con(test_ind(i,:),:);fea_number_in(test_ind(i,:),:)];
-                    labels = predict(Mdl,real(X_test)); % made real
-                    Y_test = [zeros(n_test,1);ones(n_test,1)]; % ground truth
-                    n_correct = 0;
-                    for j = 1:length(labels)
-                        if labels(j)==Y_test(j)
-                            n_correct = n_correct+1;
-                        end
-                    end
-                    correct_number(i_randsamp,i) = n_correct/length(Y_test)*100;
-                    clear Mdl
+            X = real([fea_number_con; fea_number_in]);   % samples x features
+            Y = [zeros(n_sample,1); ones(n_sample,1)];  % labels
+            cv = cvpartition(Y,'KFold',10);
+
+            for i = 1:cv.NumTestSets
+                train_idx = training(cv,i);
+                test_idx  = test(cv,i);
+                X_train = X(train_idx,:);
+                Y_train = Y(train_idx);
+                X_test  = X(test_idx,:);
+                Y_test  = Y(test_idx);
+                % Train SVM
+                Mdl = fitcsvm(X_train, Y_train, 'Standardize', true, 'KernelFunction', 'linear');
+            
+                % Beta Coefficients
+                beta = Mdl.Beta;
+                % abs_beta = abs(beta); % abs value taken later
+            
+                nChannels = length(beta);
+                means_idx = 1:2:nChannels;
+                max_idx   = 2:2:nChannels;
+            
+                if i_randsamp == 1 && i == 1
+                    mean_beta = zeros(length(means_idx), 10, 50);
+                    max_beta  = zeros(length(max_idx), 10, 50);
+                    allShapVals = cell(10,50);
+                    meanShapVals = zeros(nChannels, 10, 50);
                 end
+            
+                mean_beta(:,i,i_randsamp) = beta(means_idx);
+                max_beta(:,i,i_randsamp)  = beta(max_idx);
+            
+                % Prediction accuracy
+                labels = predict(Mdl, X_test);
+                correct_number(i_randsamp,i) = mean(labels == Y_test)*100;
+            
+                % ~~~~ Shapley Values ~~~~~
+                S = shapley(Mdl, X_train);  % X_train is  background
+                S = fit(S, X_test);         % X_test is query points
+            
+                fixedClass = 1;
+                nsamples = size(X_test,1);
+                npredictors = size(X_test,2);
+            
+                shapVals = zeros(npredictors, nsamples);
+                for il = 1:nsamples
+                    for f = 1:npredictors
+                        shapVals(f,il) = S.Shapley{f, num2str(fixedClass)}(il);
+                    end
+                end
+            
+                allShapVals{i,i_randsamp} = abs(shapVals);
+                meanShapVals(:,i,i_randsamp) = mean(abs(shapVals),2);
+            
+                clear Mdl
             end
+
+
+            % old partition method
+                % Number
+                % [train_ind, test_ind,n_test] = generateCrossValInd(n_sample); % n_sample = 52;
+                % for i = 1:10 % 10-fold 
+                %     X_train = [fea_number_con(train_ind(i,:),:);fea_number_in(train_ind(i,:),:)]; % made real
+                %     Y_train = [zeros(n_sample-n_test,1);ones(n_sample-n_test,1)];
+                %     Mdl = fitcsvm(real(X_train),Y_train,'Standardize',true,'KernelFunction','linear');
+                % 
+                %     beta = Mdl.Beta;
+                %     abs_beta = abs(beta);
+                % 
+                %     nChannels = floor(length(abs_beta));
+                %     means_idx = 1:2:nChannels;
+                %     max_idx = 2:2:nChannels;
+                % 
+                %     if i_randsamp == 1 && i == 1
+                %         mean_beta = zeros(length(means_idx), 10, 50);
+                %         max_beta  = zeros(length(max_idx), 10, 50);
+                %         allShapVals = cell(10,50);
+                %         meanShapVals = zeros(nChannels, 10, 50);
+                %     end
+                % 
+                %     % mean_abs_beta (:,i,i_randsamp) = abs_beta(means_idx);
+                %     % max_abs_beta (:,i,i_randsamp) = abs_beta(max_idx);
+                %     mean_beta (:,i,i_randsamp) = beta(means_idx);
+                %     max_beta (:,i,i_randsamp) = beta(max_idx);
+                % 
+                %     X_test = [fea_number_con(test_ind(i,:),:);fea_number_in(test_ind(i,:),:)];
+                %     labels = predict(Mdl,real(X_test)); % made real
+                %     Y_test = [zeros(n_test,1);ones(n_test,1)]; % ground truth
+                %     n_correct = 0;
+                %     for j = 1:length(labels)
+                %         if labels(j)==Y_test(j)
+                %             n_correct = n_correct+1;
+                %         end
+                %     end
+                %     correct_number(i_randsamp,i) = n_correct/length(Y_test)*100;
+                % 
+                %     % ~~~~ Shapley Values ~~~~~
+                %     S = shapley(Mdl, X_train);    % X_train is background data
+                %     S = fit(S,X_test);            % X_test is query points
+                %     nsamples = size(X_test,1);
+                %     npredictors = size(X_test,2);
+                %     shapVals = zeros(npredictors, nsamples);
+                % 
+                %     % Choose values
+                %     fixedClass = 1;
+                %     for il = 1:nsamples                        
+                %         for f = 1:npredictors
+                %             % shapVals(f, il) = S.Shapley{f,num2str(labels(il))}(il); % for predicted labels only
+                %             shapVals(f, il) = S.Shapley{f, num2str(fixedClass)}(il); % fix class
+                %         end
+                %     end
+                %     allShapVals{i,i_randsamp} = abs(shapVals);
+                %     meanShapVals(:,i,i_randsamp) = mean(abs(shapVals),2);
+                %     clear Mdl
+                % end
+
+
         else
             correct_number = 0;
             mean_beta = 0;
@@ -365,11 +454,18 @@ function [y,err,mean_weights,max_weights,sel_chan_number] = SVM(subjects,config)
        
     end 
 
+    % meanShapVals = squeeze(mean(meanShapVals, [2 3]));
+
     y = [mean(correct_number(:))];
-    err = std(correct_number(:))/sqrt(numel(correct_number)); 
+    err = std(correct_number(:))/sqrt(numel(correct_number));
+    shap = meanShapVals;
+    % shap = mean(meanShapVals(:));
     mean_weights = mean_beta;
     max_weights = max_beta;
 end
+
+
+
 
 function barplot(y, xlabels, err,config)
 
