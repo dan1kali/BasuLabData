@@ -397,7 +397,8 @@ function [y,err,shap,mean_weights,max_weights,sel_chan_number] = SVM(subjects,co
     % meanShapVals = squeeze(mean(meanShapVals, [2 3]));
 
     y = [mean(correct_number(:))];
-    err = std(correct_number(:))/sqrt(numel(correct_number));
+    % calculate SE with n=50 random samplings --> divide by /sqrt(50)
+    err = std(correct_number(:))/sqrt(length(correct_number));
     shap = meanShapVals;
     % shap = mean(meanShapVals(:));
     mean_weights = mean_beta;
@@ -449,6 +450,7 @@ function barplot(y, xlabels, err,config)
     
     hold on;
 
+    err=err.*10; % fix error from /500 to /50
     if exist('err', 'var')
         er = errorbar(x,y,err); 
         for ier = 1:numel(er)
