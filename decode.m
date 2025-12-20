@@ -385,66 +385,6 @@ function [y,err,shap,mean_weights,max_weights,sel_chan_number] = SVM(subjects,co
                 clear Mdl
             end
 
-
-            % old partition method
-                % Number
-                % [train_ind, test_ind,n_test] = generateCrossValInd(n_sample); % n_sample = 52;
-                % for i = 1:10 % 10-fold 
-                %     X_train = [fea_number_con(train_ind(i,:),:);fea_number_in(train_ind(i,:),:)]; % made real
-                %     Y_train = [zeros(n_sample-n_test,1);ones(n_sample-n_test,1)];
-                %     Mdl = fitcsvm(real(X_train),Y_train,'Standardize',true,'KernelFunction','linear');
-                % 
-                %     beta = Mdl.Beta;
-                %     abs_beta = abs(beta);
-                % 
-                %     nChannels = floor(length(abs_beta));
-                %     means_idx = 1:2:nChannels;
-                %     max_idx = 2:2:nChannels;
-                % 
-                %     if i_randsamp == 1 && i == 1
-                %         mean_beta = zeros(length(means_idx), 10, 50);
-                %         max_beta  = zeros(length(max_idx), 10, 50);
-                %         allShapVals = cell(10,50);
-                %         meanShapVals = zeros(nChannels, 10, 50);
-                %     end
-                % 
-                %     % mean_abs_beta (:,i,i_randsamp) = abs_beta(means_idx);
-                %     % max_abs_beta (:,i,i_randsamp) = abs_beta(max_idx);
-                %     mean_beta (:,i,i_randsamp) = beta(means_idx);
-                %     max_beta (:,i,i_randsamp) = beta(max_idx);
-                % 
-                %     X_test = [fea_number_con(test_ind(i,:),:);fea_number_in(test_ind(i,:),:)];
-                %     labels = predict(Mdl,real(X_test)); % made real
-                %     Y_test = [zeros(n_test,1);ones(n_test,1)]; % ground truth
-                %     n_correct = 0;
-                %     for j = 1:length(labels)
-                %         if labels(j)==Y_test(j)
-                %             n_correct = n_correct+1;
-                %         end
-                %     end
-                %     correct_number(i_randsamp,i) = n_correct/length(Y_test)*100;
-                % 
-                %     % ~~~~ Shapley Values ~~~~~
-                %     S = shapley(Mdl, X_train);    % X_train is background data
-                %     S = fit(S,X_test);            % X_test is query points
-                %     nsamples = size(X_test,1);
-                %     npredictors = size(X_test,2);
-                %     shapVals = zeros(npredictors, nsamples);
-                % 
-                %     % Choose values
-                %     fixedClass = 1;
-                %     for il = 1:nsamples                        
-                %         for f = 1:npredictors
-                %             % shapVals(f, il) = S.Shapley{f,num2str(labels(il))}(il); % for predicted labels only
-                %             shapVals(f, il) = S.Shapley{f, num2str(fixedClass)}(il); % fix class
-                %         end
-                %     end
-                %     allShapVals{i,i_randsamp} = abs(shapVals);
-                %     meanShapVals(:,i,i_randsamp) = mean(abs(shapVals),2);
-                %     clear Mdl
-                % end
-
-
         else
             correct_number = 0;
             mean_beta = 0;
